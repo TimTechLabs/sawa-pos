@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Edit, Trash2, Plus, Package } from 'lucide-react';
+import { Search, Edit, Trash2 } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct } from '../utils/productService';
 
 export default function CatalogView() {
@@ -7,32 +7,56 @@ export default function CatalogView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState(null);
 
-  useEffect(() => {
-    setProducts(getProducts());
-  }, []);
-
-  const handleDelete = (sku) => {
-    if (window.confirm('Are you sure you want to delete this spare part?')) {
-      const updated = deleteProduct ? deleteProduct(sku) : products.filter(p => p.sku !== sku);
-      setProducts(updated);
-      localStorage.setItem('sawa_products', JSON.stringify(updated));
+  const loadCatalog = async () => {
+    try {
+      const data = await getProducts();
+      setProducts(data || []);
+    } catch (err) {
+      console.error("Error loading products:", err);
     }
   };
 
-  const handleSaveEdit = (e) => {
+  useEffect(() => {
+    loadCatalog();
+
+    // Listen for changes triggered elsewhere in the application
+    const handleUpdates = () => loadCatalog();
+    window.addEventListener("productsUpdated", handleUpdates);
+
+    return () => window.removeEventListener("productsUpdated", handleUpdates);
+  }, []);
+
+  const handleDelete = async (sku) => {
+    if (window.confirm('Are you sure you want to delete this spare part?')) {
+      try {
+        const updated = await deleteProduct(sku);
+        setProducts(updated || products.filter(p => p.sku !== sku));
+        // Trigger event so POSView and InventoryView instantly sync
+        window.dispatchEvent(new Event("productsUpdated"));
+      } catch (err) {
+        console.error("Failed to delete product:", err);
+      }
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
-    const updatedList = products.map(p => 
-      p.sku === editingProduct.sku ? editingProduct : p
-    );
-    setProducts(updatedList);
-    localStorage.setItem('sawa_products', JSON.stringify(updatedList));
-    setEditingProduct(null);
+    try {
+      // Updates local storage, dispatches sync event, and posts to Django API
+      await updateProduct(editingProduct);
+      setEditingProduct(null);
+      await loadCatalog();
+      // Dispatch custom event to notify POSView
+      window.dispatchEvent(new Event("productsUpdated"));
+    } catch (err) {
+      console.error("Failed to update product:", err);
+    }
   };
 
   const filteredProducts = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+      p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -68,36 +92,48 @@ export default function CatalogView() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#DCE3EA]">
-            {filteredProducts.map((p) => (
-              <tr key={p.sku} className="hover:bg-slate-50 transition-colors">
-                <td className="p-3 font-semibold text-[#17212B]">{p.name}</td>
-                <td className="p-3 text-blue-600 font-mono">{p.sku}</td>
-                <td className="p-3 font-bold text-[#17212B]">KES {p.price.toLocaleString()}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                    p.stock > 5 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                  }`}>
-                    {p.stock} available
-                  </span>
-                </td>
-                <td className="p-3 text-right space-x-2">
-                  <button
-                    onClick={() => setEditingProduct(p)}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                    title="Edit Item"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(p.sku)}
-                    className="p-1 text-red-500 hover:bg-red-50 rounded"
-                    title="Delete Item"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            {filteredProducts.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="p-4 text-center text-[#64748B]">
+                  No spare parts found matching your query.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredProducts.map((p) => (
+                <tr key={p.sku} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3 font-semibold text-[#17212B]">{p.name}</td>
+                  <td className="p-3 text-blue-600 font-mono">{p.sku}</td>
+                  <td className="p-3 font-bold text-[#17212B]">
+                    KES {Number(p.price || 0).toLocaleString()}
+                  </td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        p.stock > 5 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {p.stock} available
+                    </span>
+                  </td>
+                  <td className="p-3 text-right space-x-2">
+                    <button
+                      onClick={() => setEditingProduct(p)}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Edit Item"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p.sku)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      title="Delete Item"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -105,15 +141,20 @@ export default function CatalogView() {
       {/* Edit Product Modal */}
       {editingProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveEdit} className="bg-white border border-[#DCE3EA] p-6 rounded-xl w-full max-w-md space-y-4 shadow-xl">
+          <form
+            onSubmit={handleSaveEdit}
+            className="bg-white border border-[#DCE3EA] p-6 rounded-xl w-full max-w-md space-y-4 shadow-xl"
+          >
             <h3 className="font-bold text-sm text-[#17212B]">Edit Spare Part</h3>
-            
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-[#64748B]">Part Name</label>
               <input
                 type="text"
-                value={editingProduct.name}
-                onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                value={editingProduct.name || ''}
+                onChange={(e) =>
+                  setEditingProduct({ ...editingProduct, name: e.target.value })
+                }
                 className="w-full border border-[#DCE3EA] p-2 text-xs rounded focus:outline-none focus:border-blue-600"
                 required
               />
@@ -124,8 +165,13 @@ export default function CatalogView() {
                 <label className="text-[10px] font-bold text-[#64748B]">Selling Price (KES)</label>
                 <input
                   type="number"
-                  value={editingProduct.price}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                  value={editingProduct.price || 0}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      price: Number(e.target.value),
+                    })
+                  }
                   className="w-full border border-[#DCE3EA] p-2 text-xs rounded focus:outline-none focus:border-blue-600"
                   required
                 />
@@ -134,8 +180,13 @@ export default function CatalogView() {
                 <label className="text-[10px] font-bold text-[#64748B]">Current Stock</label>
                 <input
                   type="number"
-                  value={editingProduct.stock}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                  value={editingProduct.stock || 0}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      stock: Number(e.target.value),
+                    })
+                  }
                   className="w-full border border-[#DCE3EA] p-2 text-xs rounded focus:outline-none focus:border-blue-600"
                   required
                 />

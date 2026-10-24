@@ -8,6 +8,11 @@ const DEFAULT_PRODUCTS = [
   { id: 6, name: 'Heavy Duty Inner Tube (2.75-17)', sku: 'TUB-006', category: 'Tyres', cost_price: 300, price: 450, stock: 25, model_compatibility: 'Bajaj Discover' },
 ];
 
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? "http://127.0.0.1:8000/api/v1" 
+  : "https://sawa-pos-backend.onrender.com/api/v1";
+
+// Read products from localStorage
 export function getProducts() {
   try {
     const stored = localStorage.getItem('sawa_master_products');
@@ -17,10 +22,12 @@ export function getProducts() {
     }
     return JSON.parse(stored);
   } catch (err) {
+    console.error("Error reading products:", err);
     return DEFAULT_PRODUCTS;
   }
 }
 
+// Save a new product
 export function saveProduct(newProductData) {
   try {
     const current = getProducts();
@@ -36,39 +43,59 @@ export function saveProduct(newProductData) {
     };
     const updated = [newProduct, ...current];
     localStorage.setItem('sawa_master_products', JSON.stringify(updated));
+    
+    // Broadcast event for live UI reactivity across tabs/views
     window.dispatchEvent(new Event('sawa_products_updated'));
+    window.dispatchEvent(new Event('productsUpdated'));
+    
     return { success: true, product: newProduct, products: updated };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
 
-export function updateProduct(id, updatedData) {
+// Update an existing product (supports both updateProduct(id, data) or updateProduct(updatedObject))
+export function updateProduct(idOrObject, updatedData) {
   try {
     const current = getProducts();
+    let targetId = idOrObject;
+    let dataToUpdate = updatedData;
+
+    // Handle single object signature: updateProduct(productObj)
+    if (typeof idOrObject === 'object' && idOrObject !== null) {
+      targetId = idOrObject.id || idOrObject.sku;
+      dataToUpdate = idOrObject;
+    }
+
     const updated = current.map(item => {
-      if (item.id === id) {
+      if (item.id === targetId || item.sku === targetId) {
         return {
           ...item,
-          name: String(updatedData.name || item.name).trim(),
-          sku: String(updatedData.sku || item.sku).trim().toUpperCase(),
-          category: String(updatedData.category || item.category),
-          cost_price: Number(updatedData.cost_price) || item.cost_price,
-          price: Number(updatedData.price) || item.price,
-          stock: Number(updatedData.stock) || item.stock,
-          model_compatibility: String(updatedData.model_compatibility || item.model_compatibility)
+          name: String(dataToUpdate.name ?? item.name).trim(),
+          sku: String(dataToUpdate.sku ?? item.sku).trim().toUpperCase(),
+          category: String(dataToUpdate.category ?? item.category),
+          cost_price: Number(dataToUpdate.cost_price ?? item.cost_price),
+          price: Number(dataToUpdate.price ?? item.price),
+          stock: Number(dataToUpdate.stock ?? item.stock),
+          model_compatibility: String(dataToUpdate.model_compatibility ?? item.model_compatibility)
         };
       }
       return item;
     });
+
     localStorage.setItem('sawa_master_products', JSON.stringify(updated));
+    
+    // Broadcast events for live UI reactivity
     window.dispatchEvent(new Event('sawa_products_updated'));
+    window.dispatchEvent(new Event('productsUpdated'));
+    
     return { success: true, products: updated };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
 
+// Update stock after a POS sale
 export function updateProductStock(sku, quantitySold) {
   try {
     const current = getProducts();
@@ -79,27 +106,31 @@ export function updateProductStock(sku, quantitySold) {
       }
       return item;
     });
+
     localStorage.setItem('sawa_master_products', JSON.stringify(updated));
+    
     window.dispatchEvent(new Event('sawa_products_updated'));
+    window.dispatchEvent(new Event('productsUpdated'));
+    
     return { success: true, products: updated };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
 
-export function deleteProduct(id) {
+// Delete a product by ID or SKU
+export function deleteProduct(idOrSku) {
   try {
     const current = getProducts();
-    const updated = current.filter(item => item.id !== id);
+    const updated = current.filter(item => item.id !== idOrSku && item.sku !== idOrSku);
+    
     localStorage.setItem('sawa_master_products', JSON.stringify(updated));
+    
     window.dispatchEvent(new Event('sawa_products_updated'));
+    window.dispatchEvent(new Event('productsUpdated'));
+    
     return { success: true, products: updated };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
-
-// NOTE: The fake "initiateStkPush" and "createSale" mock functions that used to
-// live here (setTimeout + fabricated success message, no network call) have been
-// REMOVED. All M-Pesa communication now goes through the real Django backend
-// endpoints in POSView.jsx.

@@ -16,14 +16,21 @@ export default function POSView({ globalSearch = '' }) {
   const [waitingForPayment, setWaitingForPayment] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  useEffect(() => {
-    setProducts(getProducts());
-  }, []);
+ useEffect(() => {
+  const loadProducts = () => setProducts(getProducts());
 
-  useEffect(() => {
-    setSearchQuery(globalSearch);
-  }, [globalSearch]);
+  // Initial load
+  loadProducts();
 
+  // Listen for catalog updates across tabs/views
+  window.addEventListener("sawa_products_updated", loadProducts);
+  window.addEventListener("productsUpdated", loadProducts);
+
+  return () => {
+    window.removeEventListener("sawa_products_updated", loadProducts);
+    window.removeEventListener("productsUpdated", loadProducts);
+  };
+}, []); 
   const addToCart = (product) => {
     if (product.stock <= 0) {
       alert('This item is out of stock!');
