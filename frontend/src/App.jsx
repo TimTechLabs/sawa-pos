@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import DashboardView from "./pages/DashboardView";
 import POSView from "./pages/POSView";
-import ProductsView from "./pages/ProductsView";
+import CatalogView from "./components/CatalogView"; // <--- Import your CatalogView here
 import InventoryView from "./pages/InventoryView";
 import SalesView from "./pages/SalesView";
 import ReportsView from './pages/ReportsView';
@@ -19,7 +19,8 @@ export default function App() {
       case "pos":
         return <POSView globalSearch={searchQuery} />;
       case "products":
-        return <ProductsView globalSearch={searchQuery} />;
+      case "catalog": // <--- Routes Spare Parts Catalog directly here
+        return <CatalogView />;
       case "inventory":
         return <InventoryView globalSearch={searchQuery} />;
       case "sales":
@@ -27,7 +28,6 @@ export default function App() {
       case "reports": 
         return <ReportsView />;
       case "settings": 
-        // Handles your offline configuration page for M-Pesa Till/Paybill numbers
         return <SettingsView />; 
       default:
         return <DashboardView setActiveTab={setActiveTab} />;
