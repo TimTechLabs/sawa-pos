@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Trash2, Printer, Search, Smartphone, Banknote, CheckCircle } from 'lucide-react';
 import { getProducts, updateProductStock } from '../utils/productService';
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? "http://127.0.0.1:8000/api/v1" 
+  : "https://sawa-pos-backend.onrender.com/api/v1";
+
 
 export default function POSView({ globalSearch = '' }) {
   const [products, setProducts] = useState([]);
