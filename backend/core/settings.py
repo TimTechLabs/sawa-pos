@@ -10,8 +10,8 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 DEBUG_MPESA_MOCK = os.getenv('DEBUG_MPESA_MOCK', 'False').lower() == 'true'
 MPESA_ENVIRONMENT = os.getenv('MPESA_ENVIRONMENT', 'sandbox').strip().lower()
 
-ALLOWED_HOSTS = ['*']
 
+ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,6 +32,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware', # Must be at the top
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -86,7 +87,7 @@ USE_TZ = True
 STATIC_URL = 'static/'  # Added the trailing slash here
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 CORS_ALLOW_ALL_ORIGINS = True
 # Django REST Framework & JWT Settings
