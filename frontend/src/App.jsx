@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import DashboardView from "./pages/DashboardView";
 import POSView from "./pages/POSView";
-import CatalogView from "./components/CatalogView"; // <--- Import your CatalogView here
+import CatalogView from "./components/CatalogView";
 import InventoryView from "./pages/InventoryView";
 import SalesView from "./pages/SalesView";
 import ReportsView from './pages/ReportsView';
