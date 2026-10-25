@@ -22,6 +22,16 @@ const parseNumericTotal = (val) => {
   return 0;
 };
 
+// Robust date checker for "Today"
+const isToday = (dateString) => {
+  if (!dateString) return false;
+  const d = new Date(dateString);
+  const today = new Date();
+  return d.getDate() === today.getDate() &&
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear();
+};
+
 export default function DashboardView({ setActiveTab }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -36,7 +46,11 @@ export default function DashboardView({ setActiveTab }) {
   const loadData = () => {
     try {
       const ledger = JSON.parse(localStorage.getItem('sawa_sales_history') || '[]');
-      setSalesLedger(Array.isArray(ledger) ? ledger : []);
+      const legacy = JSON.parse(localStorage.getItem('sawa_pos_transactions_v1') || '[]');
+      const combined = [...ledger, ...legacy];
+      const unique = Array.from(new Map(combined.map(item => [item.receiptNo || item.id, item])).values());
+      
+      setSalesLedger(Array.isArray(unique) ? unique : []);
 
       const prods = getProducts();
       setProducts(Array.isArray(prods) ? prods : []);
@@ -52,10 +66,12 @@ export default function DashboardView({ setActiveTab }) {
     const handleSync = () => loadData();
     window.addEventListener("sawa_products_updated", handleSync);
     window.addEventListener("productsUpdated", handleSync);
+    window.addEventListener("storage", handleSync);
 
     return () => {
       window.removeEventListener("sawa_products_updated", handleSync);
       window.removeEventListener("productsUpdated", handleSync);
+      window.removeEventListener("storage", handleSync);
     };
   }, []);
 
@@ -76,7 +92,6 @@ export default function DashboardView({ setActiveTab }) {
       compatibility: formData.compatibility || 'Universal / Boxer / TVS'
     };
 
-    // Save using shared service
     addProduct(newProductPayload);
 
     setSuccessMsg('Spare part successfully saved and synchronized across Inventory, Catalog, and POS!');
@@ -86,10 +101,9 @@ export default function DashboardView({ setActiveTab }) {
     loadData();
   };
 
-  // Calculations from actual offline sales ledger safely using parseNumericTotal
-  const todayStr = new Date().toDateString();
+  // Calculations from actual offline sales ledger safely using parseNumericTotal & robust isToday check
   const todaysSalesTotal = salesLedger
-    .filter(s => new Date(s.date || Date.now()).toDateString() === todayStr)
+    .filter(s => isToday(s.date))
     .reduce((sum, s) => sum + parseNumericTotal(s.total || s.amount), 0);
   
   const totalTransactionsCount = salesLedger.length;

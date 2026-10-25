@@ -67,7 +67,10 @@ export default function POSView({ globalSearch = '' }) {
 
   const finalizeTransaction = (methodLabel, referenceNo) => {
     const receiptNo = `SAWA-${Math.floor(100000 + Math.random() * 900000)}`;
-    const dateFormatted = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    
+    // Fixed: Using local device time instead of UTC to avoid time offset
+    const now = new Date();
+    const dateFormatted = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const newReceipt = {
       receiptNo: receiptNo,
@@ -96,6 +99,7 @@ export default function POSView({ globalSearch = '' }) {
     // 3. Broadcast updates globally so Dashboard and SalesView refresh instantly
     window.dispatchEvent(new Event('sawa_products_updated'));
     window.dispatchEvent(new Event('productsUpdated'));
+    window.dispatchEvent(new Event('sawa_sales_updated'));
 
     setReceiptData(newReceipt);
     setProducts(getProducts());
