@@ -1,136 +1,95 @@
-// Default initial spare parts for Sawa POS (Kitale Branch)
+// Initial default Kenyan motorcycle spare parts dataset
 const DEFAULT_PRODUCTS = [
-  { id: 1, name: 'Spark Plug (Bosch / NGK)', sku: 'SPK-001', category: 'Electrical', cost_price: 220, price: 350, stock: 18, model_compatibility: 'Boxer BM 100/150, TVS Star HLX' },
-  { id: 2, name: 'Brake Shoes (Front/Rear)', sku: 'BRK-002', category: 'Braking', cost_price: 450, price: 650, stock: 12, model_compatibility: 'Boxer BM 100/150' },
-  { id: 3, name: 'Drive Chain & Sprocket Kit', sku: 'DRV-003', category: 'Transmission', cost_price: 1800, price: 2400, stock: 3, model_compatibility: 'Bajaj Discover 125, TVS Star' },
-  { id: 4, name: 'Clutch Plate Set', sku: 'CLT-004', category: 'Transmission', cost_price: 850, price: 1200, stock: 15, model_compatibility: 'Honda Ace 110, Boxer BM 100' },
-  { id: 5, name: 'Engine Oil (Total 4T 1L)', sku: 'OIL-005', category: 'Fluids', cost_price: 550, price: 850, stock: 24, model_compatibility: 'Universal / All Bikes' },
-  { id: 6, name: 'Heavy Duty Inner Tube (2.75-17)', sku: 'TUB-006', category: 'Tyres', cost_price: 300, price: 450, stock: 25, model_compatibility: 'Bajaj Discover' },
+  { name: 'Spark Plug (Bosch / NGK)', sku: 'SPK-001', category: 'Electrical', costPrice: 220, price: 350, stock: 17 },
+  { name: 'Brake Shoes (Front/Rear)', sku: 'BRK-002', category: 'Braking', costPrice: 450, price: 650, stock: 10 },
+  { name: 'Drive Chain & Sprocket Kit', sku: 'CHN-003', category: 'Transmission', costPrice: 1600, price: 2400, stock: 3 },
+  { name: 'Clutch Plate Set', sku: 'CLT-004', category: 'Transmission', costPrice: 850, price: 1200, stock: 8 },
+  { name: 'Engine Oil (Total 4T 1L)', sku: 'OIL-005', category: 'Fluids', costPrice: 550, price: 850, stock: 24 },
+  { name: 'Heavy Duty Inner Tube (2.75-17)', sku: 'TUB-006', category: 'Tyres', costPrice: 300, price: 450, stock: 12 }
 ];
 
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? "http://127.0.0.1:8000/api/v1" 
-  : "https://sawa-pos-backend.onrender.com/api/v1";
+const STORAGE_KEY = 'sawa_pos_products_v1';
 
-// Read products from localStorage
 export function getProducts() {
   try {
-    const stored = localStorage.getItem('sawa_master_products');
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) {
-      localStorage.setItem('sawa_master_products', JSON.stringify(DEFAULT_PRODUCTS));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PRODUCTS));
       return DEFAULT_PRODUCTS;
     }
-    return JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    // Guarantee it always returns an array
+    return Array.isArray(parsed) ? parsed : DEFAULT_PRODUCTS;
   } catch (err) {
-    console.error("Error reading products:", err);
+    console.error("Failed to fetch products:", err);
     return DEFAULT_PRODUCTS;
   }
 }
 
-// Save a new product
-export function saveProduct(newProductData) {
+export function saveProducts(products) {
   try {
-    const current = getProducts();
-    const newProduct = {
-      id: Date.now(),
-      name: String(newProductData.name || '').trim(),
-      sku: String(newProductData.sku || '').trim().toUpperCase(),
-      category: String(newProductData.category || 'Electrical'),
-      cost_price: Number(newProductData.cost_price) || 0,
-      price: Number(newProductData.price) || 0,
-      stock: Number(newProductData.stock) || 0,
-      model_compatibility: String(newProductData.model_compatibility || 'General')
-    };
-    const updated = [newProduct, ...current];
-    localStorage.setItem('sawa_master_products', JSON.stringify(updated));
-    
-    // Broadcast event for live UI reactivity across tabs/views
+    const safeData = Array.isArray(products) ? products : DEFAULT_PRODUCTS;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(safeData));
     window.dispatchEvent(new Event('sawa_products_updated'));
     window.dispatchEvent(new Event('productsUpdated'));
-    
-    return { success: true, product: newProduct, products: updated };
   } catch (err) {
-    return { success: false, error: err.message };
+    console.error("Failed to save products:", err);
   }
 }
 
-// Update an existing product (supports both updateProduct(id, data) or updateProduct(updatedObject))
-export function updateProduct(idOrObject, updatedData) {
-  try {
-    const current = getProducts();
-    let targetId = idOrObject;
-    let dataToUpdate = updatedData;
+export const saveProduct = saveProducts;
 
-    // Handle single object signature: updateProduct(productObj)
-    if (typeof idOrObject === 'object' && idOrObject !== null) {
-      targetId = idOrObject.id || idOrObject.sku;
-      dataToUpdate = idOrObject;
+export function addProduct(product) {
+  const products = getProducts();
+  const existingIndex = products.findIndex(p => p.sku === product.sku);
+  
+  if (existingIndex >= 0) {
+    products[existingIndex] = { ...products[existingIndex], ...product };
+  } else {
+    products.unshift(product);
+  }
+  
+  saveProducts(products);
+  return products;
+}
+
+export function updateProduct(updatedProduct) {
+  const products = getProducts();
+  const index = products.findIndex(p => p.sku === updatedProduct.sku);
+  if (index >= 0) {
+    products[index] = { ...products[index], ...updatedProduct };
+    saveProducts(products);
+  }
+  return products;
+}
+
+export function deleteProduct(sku) {
+  let products = getProducts();
+  products = products.filter(p => p.sku !== sku);
+  saveProducts(products);
+  return products;
+}
+
+export function deductStock(cartItems) {
+  const products = getProducts();
+  cartItems.forEach(cartItem => {
+    const product = products.find(p => p.sku === cartItem.sku);
+    if (product) {
+      product.stock = Math.max(0, product.stock - (cartItem.qty || cartItem.quantity || 1));
     }
-
-    const updated = current.map(item => {
-      if (item.id === targetId || item.sku === targetId) {
-        return {
-          ...item,
-          name: String(dataToUpdate.name ?? item.name).trim(),
-          sku: String(dataToUpdate.sku ?? item.sku).trim().toUpperCase(),
-          category: String(dataToUpdate.category ?? item.category),
-          cost_price: Number(dataToUpdate.cost_price ?? item.cost_price),
-          price: Number(dataToUpdate.price ?? item.price),
-          stock: Number(dataToUpdate.stock ?? item.stock),
-          model_compatibility: String(dataToUpdate.model_compatibility ?? item.model_compatibility)
-        };
-      }
-      return item;
-    });
-
-    localStorage.setItem('sawa_master_products', JSON.stringify(updated));
-    
-    // Broadcast events for live UI reactivity
-    window.dispatchEvent(new Event('sawa_products_updated'));
-    window.dispatchEvent(new Event('productsUpdated'));
-    
-    return { success: true, products: updated };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  });
+  saveProducts(products);
+  return products;
 }
 
-// Update stock after a POS sale
-export function updateProductStock(sku, quantitySold) {
-  try {
-    const current = getProducts();
-    const updated = current.map(item => {
-      if (item.sku === sku) {
-        const newStock = Math.max(0, item.stock - Number(quantitySold || 0));
-        return { ...item, stock: newStock };
-      }
-      return item;
-    });
-
-    localStorage.setItem('sawa_master_products', JSON.stringify(updated));
-    
-    window.dispatchEvent(new Event('sawa_products_updated'));
-    window.dispatchEvent(new Event('productsUpdated'));
-    
-    return { success: true, products: updated };
-  } catch (err) {
-    return { success: false, error: err.message };
+export function updateProductStock(sku, newStockOrDelta) {
+  const products = getProducts();
+  const product = products.find(p => p.sku === sku);
+  if (product) {
+    if (typeof newStockOrDelta === 'number') {
+      product.stock = newStockOrDelta;
+    }
+    saveProducts(products);
   }
-}
-
-// Delete a product by ID or SKU
-export function deleteProduct(idOrSku) {
-  try {
-    const current = getProducts();
-    const updated = current.filter(item => item.id !== idOrSku && item.sku !== idOrSku);
-    
-    localStorage.setItem('sawa_master_products', JSON.stringify(updated));
-    
-    window.dispatchEvent(new Event('sawa_products_updated'));
-    window.dispatchEvent(new Event('productsUpdated'));
-    
-    return { success: true, products: updated };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  return products;
 }

@@ -1,207 +1,174 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api/axios';
-import { Search, Calendar, Smartphone, Banknote, FileText, X, Printer } from 'lucide-react';
+import { Receipt, Search, Printer, CheckCircle } from 'lucide-react';
 
 export default function SalesView() {
-  const [sales, setSales] = useState([]);
-  const [search, setSearch] = useState('');
+  const [transactions, setTransactions] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
 
-  useEffect(() => {
-    fetchSales();
-  }, []);
-
-  const fetchSales = async () => {
+  const loadTransactions = () => {
     try {
-      const res = await api.get('sales/');
-      setSales(res.data);
+      const stored = localStorage.getItem('sawa_sales_history');
+      if (stored) {
+        setTransactions(JSON.parse(stored));
+      } else {
+        const defaults = [
+          { receiptNo: 'SAWA-1051', date: '2026-10-25 10:00', cashier: 'Carolyne Waruguru', customer: 'John Kamau', paymentMethod: 'M-Pesa (Q8291OP)', total: 'KES 3,100', cart: [{ name: 'Brake Shoes (Front/Rear)', qty: 2, price: 1550 }] },
+          { receiptNo: 'SAWA-1042', date: '2026-10-25 09:15', cashier: 'Carolyne Waruguru', customer: 'Walk-in Customer (Kitale)', paymentMethod: 'Cash (CASH-001)', total: 'KES 650', cart: [{ name: 'Spark Plug (Bosch / NGK)', qty: 1, price: 650 }] }
+        ];
+        localStorage.setItem('sawa_sales_history', JSON.stringify(defaults));
+        setTransactions(defaults);
+      }
     } catch (err) {
-      setSales([
-        {
-          id: 'TXN-9842',
-          timestamp: '2026-10-20 09:32',
-          customer: 'Walk-in Biker (Boxer BM 150)',
-          payment_method: 'M-Pesa',
-          reference: 'QJH82910KP',
-          total: 3100,
-          items: [
-            { name: 'Spark Plug (Bosch / NGK)', qty: 2, price: 350 },
-            { name: 'Drive Chain & Sprocket Kit', qty: 1, price: 2400 }
-          ]
-        },
-        {
-          id: 'TXN-9841',
-          timestamp: '2026-10-19 12:15',
-          customer: 'John Kamau (TVS Star HLX)',
-          payment_method: 'Cash',
-          reference: 'CASH-001',
-          total: 650,
-          items: [
-            { name: 'Brake Shoes (Front/Rear)', qty: 1, price: 650 }
-          ]
-        },
-        {
-          id: 'TXN-9840',
-          timestamp: '2026-10-19 10:04',
-          customer: 'Boda Boda Stage 49',
-          payment_method: 'M-Pesa',
-          reference: 'QJH71029LM',
-          total: 2550,
-          items: [
-            { name: 'Engine Oil (Total 4T 1L)', qty: 3, price: 850 }
-          ]
-        }
-      ]);
+      console.error("Error loading transactions:", err);
     }
   };
 
-  const filteredSales = sales.filter(s => 
-    s.id.toLowerCase().includes(search.toLowerCase()) || 
-    s.customer.toLowerCase().includes(search.toLowerCase()) ||
-    s.reference.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    loadTransactions();
+    const handleSync = () => loadTransactions();
+    window.addEventListener('sawa_products_updated', handleSync);
+    window.addEventListener('productsUpdated', handleSync);
+    return () => {
+      window.removeEventListener('sawa_products_updated', handleSync);
+      window.removeEventListener('productsUpdated', handleSync);
+    };
+  }, []);
+
+  const filteredTxns = transactions.filter(tx =>
+    (tx.receiptNo || tx.id)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.paymentMethod?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4 max-w-7xl mx-auto pb-8 font-sans text-[#1E293B]">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-3 border-b border-[#DCE3EA]">
         <div>
-          <h2 className="text-xl font-bold text-[#111827]">Sales & Receipts History</h2>
-          <p className="text-xs text-gray-500">Track completed transactions, payment methods (M-Pesa & Cash), and print receipts.</p>
+          <h2 className="text-base font-bold text-[#111827] uppercase tracking-wider">
+            Sales & Receipts History
+          </h2>
+          <p className="text-xs text-[#64748B]">
+            Track completed transactions, payment methods (M-Pesa & cash), and print receipts.
+          </p>
         </div>
-        <div className="bg-white border border-gray-200 px-4 py-2 rounded-xl text-xs font-medium text-gray-600 flex items-center gap-2 shadow-xs">
-          <Calendar className="w-4 h-4 text-[#2563EB]" />
-          <span>Showing records for Today & Yesterday</span>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#64748B]" />
+          <input
+            type="text"
+            placeholder="Search transaction ID or customer..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#F9FAFB] border border-[#DCE3EA] pl-9 pr-3 py-1.5 text-xs text-[#111827] focus:outline-none focus:border-black"
+          />
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex items-center gap-3">
-        <Search className="w-5 h-5 text-gray-400" />
-        <input 
-          type="text"
-          placeholder="Search by transaction ID, customer name, or M-Pesa ref..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full text-sm outline-none"
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-600 border-b border-gray-200 text-xs font-semibold uppercase">
+      <div className="border border-[#DCE3EA] bg-white overflow-x-auto">
+        <table className="w-full text-left text-xs min-w-[640px]">
+          <thead className="bg-[#F3F4F6] border-b border-[#DCE3EA] text-[#374151] font-bold">
             <tr>
-              <th className="px-4 py-3">Transaction ID</th>
-              <th className="px-4 py-3">Date & Time</th>
-              <th className="px-4 py-3">Customer / Bike</th>
-              <th className="px-4 py-3">Payment Method</th>
-              <th className="px-4 py-3">Total Amount (KES)</th>
-              <th className="px-4 py-3 text-right">Receipt</th>
+              <th className="p-3">Transaction ID</th>
+              <th className="p-3">Date & Time</th>
+              <th className="p-3">Customer / Branch</th>
+              <th className="p-3">Payment Method</th>
+              <th className="p-3">Total Amount</th>
+              <th className="p-3 text-right">Receipt</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredSales.map(sale => (
-              <tr key={sale.id} className="hover:bg-gray-50/80 transition-colors">
-                <td className="px-4 py-3 font-mono font-bold text-[#2563EB] text-xs">
-                  {sale.id}
-                </td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{sale.timestamp}</td>
-                <td className="px-4 py-3 font-medium text-[#111827] text-xs">{sale.customer}</td>
-                <td className="px-4 py-3 text-xs">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold ${
-                    sale.payment_method === 'M-Pesa' 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {sale.payment_method === 'M-Pesa' ? <Smartphone className="w-3 h-3" /> : <Banknote className="w-3 h-3" />}
-                    {sale.payment_method} ({sale.reference})
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-bold text-[#111827]">
-                  KES {sale.total.toLocaleString()}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button 
-                    onClick={() => setSelectedReceipt(sale)}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 ml-auto cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-[#2563EB]" /> View Receipt
-                  </button>
+          <tbody className="divide-y divide-[#DCE3EA]">
+            {filteredTxns.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="p-6 text-center text-[#64748B]">
+                  No sales receipts found. Complete a checkout in POS to record transactions.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredTxns.map((tx, idx) => (
+                <tr key={tx.receiptNo || tx.id || idx} className="hover:bg-[#F9FAFB]">
+                  <td className="p-3 font-mono font-bold text-[#2563EB]">{tx.receiptNo || tx.id}</td>
+                  <td className="p-3 text-[#4B5563]">{tx.date}</td>
+                  <td className="p-3 text-[#111827] font-semibold">{tx.customer || 'Walk-in Customer (Kitale)'}</td>
+                  <td className="p-3">
+                    <span className="inline-block px-2 py-0.5 bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] text-[10px] font-bold uppercase">
+                      {tx.paymentMethod}
+                    </span>
+                  </td>
+                  <td className="p-3 font-black text-[#111827]">{tx.total || tx.amount}</td>
+                  <td className="p-3 text-right">
+                    <button
+                      onClick={() => setSelectedReceipt(tx)}
+                      className="px-2.5 py-1 border border-[#DCE3EA] bg-white text-[#374151] hover:bg-[#F3F4F6] text-xs font-semibold inline-flex items-center gap-1"
+                    >
+                      <Receipt className="w-3.5 h-3.5" /> View Receipt
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
+      {/* Printable Receipt Modal */}
       {selectedReceipt && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 print-receipt-container">
-            <div className="flex items-center justify-between border-b pb-3 no-print">
-              <h3 className="font-bold text-base text-[#111827]">Receipt Preview</h3>
-              <button onClick={() => setSelectedReceipt(null)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div id="printable-receipt" className="bg-white border border-[#DCE3EA] w-full max-w-sm p-6 space-y-4 text-xs mx-auto rounded-none shadow-none">
+            <div className="text-center space-y-1 border-b border-dashed border-[#DCE3EA] pb-3">
+              <h3 className="font-bold text-sm text-[#17212B]">SAWA MOTORCYCLE SPARES</h3>
+              <p className="text-[10px] text-[#64748B]">Kitale Branch, P.O. Box 30200</p>
+              <p className="text-[10px] text-[#64748B]">Tel: +254712160288</p>
+              <p className="text-[10px] font-bold text-[#17212B]">Receipt #: {selectedReceipt.receiptNo || selectedReceipt.id}</p>
+              <p className="text-[10px] text-[#64748B]">Date & Time: {selectedReceipt.date}</p>
+              <p className="text-[10px] text-[#64748B]">Cashier: {selectedReceipt.cashier || 'Carolyne Waruguru'}</p>
             </div>
 
-            {/* Thermal Receipt Paper Layout */}
-            <div className="bg-white font-mono text-xs p-4 rounded-xl border border-dashed border-gray-300 space-y-3 text-black">
-              <div className="text-center space-y-0.5">
-                <h4 className="font-bold text-sm tracking-wide">SAWA MOTORCYCLE SPARES</h4>
-                <p className="text-[10px] text-gray-600">Kitale, P.O. Box 30200</p>
-                <p className="text-[10px] text-gray-600">Tel: +254 712 345 678</p>
-              </div>
-
-              <div className="border-t border-b border-gray-300 py-2 space-y-1 text-[11px]">
-                <div className="flex justify-between">
-                  <span>Receipt ID:</span>
-                  <span className="font-bold">{selectedReceipt.id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Date:</span>
-                  <span>{selectedReceipt.timestamp}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cashier:</span>
-                  <span>Carolyne Waruguru</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Payment:</span>
-                  <span className="font-bold text-[#2563EB]">{selectedReceipt.payment_method} ({selectedReceipt.reference})</span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-bold text-gray-600 uppercase flex justify-between">
-                  <span>Item</span>
-                  <span>Total</span>
-                </div>
-                {selectedReceipt.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-[11px]">
-                    <div>
-                      <div>{item.name}</div>
-                      <div className="text-[10px] text-gray-600">{item.qty} x KES {item.price.toLocaleString()}</div>
-                    </div>
-                    <span className="font-bold">KES {(item.qty * item.price).toLocaleString()}</span>
+            <div className="space-y-2 border-b border-dashed border-[#DCE3EA] pb-3 max-h-36 overflow-y-auto">
+              {selectedReceipt.cart && selectedReceipt.cart.length > 0 ? (
+                selectedReceipt.cart.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-[#17212B]">
+                    <span>{item.name}</span>
+                    <span className="font-bold">{item.qty || item.quantity || 1} × KES {item.price}</span>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <div className="flex justify-between text-[#17212B]">
+                  <span>General Spare Parts Purchase</span>
+                  <span className="font-bold">1 × {selectedReceipt.total || selectedReceipt.amount}</span>
+                </div>
+              )}
+            </div>
 
-              <div className="border-t border-gray-300 pt-2 flex justify-between font-bold text-sm text-black">
-                <span>TOTAL PAID:</span>
-                <span>KES {selectedReceipt.total.toLocaleString()}</span>
+            <div className="space-y-1 border-b border-dashed border-[#DCE3EA] pb-3">
+              <div className="flex justify-between font-bold text-sm text-[#17212B]">
+                <span>TOTAL PAID</span>
+                <span>{selectedReceipt.total || selectedReceipt.amount}</span>
               </div>
-
-              <div className="text-center text-[10px] text-gray-600 pt-2 border-t border-gray-200">
-                <p>Karibu Tena! No goods returned after 48 hrs.</p>
-                <p className="font-semibold text-[#2563EB] mt-1">Powered by Sawa POS</p>
+              <div className="flex justify-between text-[10px] text-[#64748B]">
+                <span>PAYMENT METHOD</span>
+                <span className="font-semibold uppercase">{selectedReceipt.paymentMethod}</span>
               </div>
             </div>
 
-            <div className="flex gap-2 no-print">
-              <button 
-                onClick={() => window.print()} 
-                className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-2"
+            <div className="text-center pt-1 text-[10px] text-[#64748B] italic">
+              Asante sana! Karibu tena Kitale Branch.
+            </div>
+
+            <div className="flex gap-3 pt-3 no-print">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 font-semibold text-xs flex items-center justify-center gap-1 rounded-none"
               >
-                <Printer className="w-4 h-4" /> Print Thermal Receipt
+                <Printer className="w-3.5 h-3.5" /> Print Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(null)}
+                className="flex-1 border border-[#DCE3EA] bg-white hover:bg-slate-50 text-[#17212B] py-2.5 font-semibold text-xs rounded-none"
+              >
+                Close
               </button>
             </div>
           </div>

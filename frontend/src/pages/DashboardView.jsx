@@ -9,46 +9,91 @@ import {
   Boxes, 
   ArrowUpRight 
 } from 'lucide-react';
-import { saveProduct } from '../utils/productService';
+import { getProducts, addProduct } from '../utils/productService';
 import sideImg from '../assets/side.jpg';
+
+// Helper function to safely parse totals whether they are numbers, strings, or undefined
+const parseNumericTotal = (val) => {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[^0-9.-]+/g, '');
+    return parseFloat(cleaned) || 0;
+  }
+  return 0;
+};
 
 export default function DashboardView({ setActiveTab }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [salesLedger, setSalesLedger] = useState([]);
+  const [products, setProducts] = useState([]);
   
   const [formData, setFormData] = useState({
     name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: ''
   });
 
+  const loadData = () => {
+    try {
+      const ledger = JSON.parse(localStorage.getItem('sawa_sales_history') || '[]');
+      setSalesLedger(Array.isArray(ledger) ? ledger : []);
+
+      const prods = getProducts();
+      setProducts(Array.isArray(prods) ? prods : []);
+    } catch (err) {
+      console.error("Error loading dashboard data:", err);
+    }
+  };
+
   useEffect(() => {
-    // Load sales ledger dynamically from local storage for offline use
-    const ledger = JSON.parse(localStorage.getItem('sawa_sales_history') || '[]');
-    setSalesLedger(ledger);
+    loadData();
+
+    // Listen for real-time synchronization events across tabs and views
+    const handleSync = () => loadData();
+    window.addEventListener("sawa_products_updated", handleSync);
+    window.addEventListener("productsUpdated", handleSync);
+
+    return () => {
+      window.removeEventListener("sawa_products_updated", handleSync);
+      window.removeEventListener("productsUpdated", handleSync);
+    };
   }, []);
 
   const handleAddProduct = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.price || !formData.stock) {
-      setErrorMsg('Please fill in all required fields.');
+    if (!formData.name || !formData.price || !formData.stock || !formData.sku) {
+      setErrorMsg('Please fill in all required fields (Name, SKU, Price, Stock).');
       return;
     }
     
-    saveProduct(formData);
-    setSuccessMsg('Spare part successfully saved to Inventory and Catalog!');
+    const newProductPayload = {
+      name: formData.name.trim(),
+      sku: formData.sku.trim().toUpperCase(),
+      category: formData.category || 'General Spares',
+      costPrice: Number(formData.cost_price || formData.price * 0.7),
+      price: Number(formData.price),
+      stock: Number(formData.stock),
+      compatibility: formData.compatibility || 'Universal / Boxer / TVS'
+    };
+
+    // Save using shared service
+    addProduct(newProductPayload);
+
+    setSuccessMsg('Spare part successfully saved and synchronized across Inventory, Catalog, and POS!');
     setIsAddModalOpen(false);
-    setTimeout(() => setSuccessMsg(''), 3000);
+    setTimeout(() => setSuccessMsg(''), 4000);
     setFormData({ name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '' });
+    loadData();
   };
 
-  // Calculations from actual offline sales ledger
+  // Calculations from actual offline sales ledger safely using parseNumericTotal
   const todayStr = new Date().toDateString();
   const todaysSalesTotal = salesLedger
     .filter(s => new Date(s.date || Date.now()).toDateString() === todayStr)
-    .reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+    .reduce((sum, s) => sum + parseNumericTotal(s.total || s.amount), 0);
   
   const totalTransactionsCount = salesLedger.length;
+  const lowStockCount = products.filter(p => p.stock <= 5).length;
 
   // Weekly sales aggregation (Mon - Sun) connected to offline ledger
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -59,7 +104,7 @@ export default function DashboardView({ setActiveTab }) {
         const dayIndex = (d.getDay() + 6) % 7;
         return dayIndex === idx;
       })
-      .reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+      .reduce((sum, s) => sum + parseNumericTotal(s.total || s.amount), 0);
     return { day, amount: dayTotal };
   });
 
@@ -79,7 +124,7 @@ export default function DashboardView({ setActiveTab }) {
       <div className="bg-white border border-[#DCE3EA] p-6 flex flex-col lg:flex-row items-center justify-between gap-6" style={{ boxShadow: 'none' }}>
         <div className="flex-1 space-y-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 border border-blue-200">
-            
+            Sawa MotoManager
           </span>
           <h1 className="text-xl font-bold text-[#17212B]">
             Welcome Back, Carolyne Waruguru.
@@ -122,7 +167,7 @@ export default function DashboardView({ setActiveTab }) {
         </div>
       </div>
 
-      {/* Statistics Section with Uniform Sawa POS Blue Theme */}
+      {/* Statistics Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard 
           title="Today's Sales" 
@@ -138,13 +183,13 @@ export default function DashboardView({ setActiveTab }) {
         />
         <MetricCard 
           title="Total Inventory Items" 
-          value="326" 
-          change="12 categories active" 
+          value={products.length} 
+          change="Active parts catalog" 
           icon={Package} 
         />
         <MetricCard 
           title="Low-Stock Alerts" 
-          value="4 parts" 
+          value={`${lowStockCount} parts`} 
           change="Requires reordering" 
           icon={AlertTriangle} 
         />
@@ -208,12 +253,14 @@ export default function DashboardView({ setActiveTab }) {
                       POS
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-[#17212B]">{sale.receiptNo || 'SAWA-REC'}</div>
+                      <div className="text-xs font-bold text-[#17212B]">{sale.receiptNo || sale.id || 'SAWA-REC'}</div>
                       <div className="text-[10px] text-[#64748B]">{sale.date || 'Today'}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-bold text-[#17212B]">KES {(Number(sale.total) || 0).toLocaleString()}</div>
+                    <div className="text-xs font-bold text-[#17212B]">
+                      {typeof sale.total === 'number' ? `KES ${sale.total.toLocaleString()}` : (sale.total || sale.amount || 'KES 0')}
+                    </div>
                     <span className="text-[9px] uppercase font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5">
                       {sale.paymentMethod || 'Cash'}
                     </span>
@@ -230,30 +277,24 @@ export default function DashboardView({ setActiveTab }) {
             <h3 className="font-bold text-sm text-[#17212B]">Low-Stock Watchlist</h3>
           </div>
           <div className="space-y-3">
-            <div className="p-3 border border-blue-200 bg-blue-50/30 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-[#17212B]">Brake Shoes (Box)</div>
-                <div className="text-[10px] text-blue-800">Stock remaining: 2 units</div>
-              </div>
-              <button 
-                onClick={() => setActiveTab('inventory')}
-                className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 font-semibold"
-              >
-                Restock
-              </button>
-            </div>
-            <div className="p-3 border border-blue-200 bg-blue-50/30 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-[#17212B]">Clutch Cable (Bajaj)</div>
-                <div className="text-[10px] text-blue-800">Stock remaining: 3 units</div>
-              </div>
-              <button 
-                onClick={() => setActiveTab('inventory')}
-                className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 font-semibold"
-              >
-                Restock
-              </button>
-            </div>
+            {products.filter(p => p.stock <= 5).length === 0 ? (
+              <p className="text-xs text-[#64748B] py-4 text-center">All inventory stock levels are optimal.</p>
+            ) : (
+              products.filter(p => p.stock <= 5).slice(0, 4).map((item) => (
+                <div key={item.sku} className="p-3 border border-blue-200 bg-blue-50/30 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-[#17212B]">{item.name}</div>
+                    <div className="text-[10px] text-blue-800">Stock remaining: {item.stock} units</div>
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('inventory')}
+                    className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 font-semibold"
+                  >
+                    Restock
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -275,7 +316,7 @@ export default function DashboardView({ setActiveTab }) {
                 <input 
                   type="text" 
                   required
-                  placeholder="e.g. Clutch Cable"
+                  placeholder="e.g. Clutch Cable - Bajaj Boxer"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
@@ -304,6 +345,9 @@ export default function DashboardView({ setActiveTab }) {
                     <option value="Engine">Engine</option>
                     <option value="Body">Body</option>
                     <option value="Brakes">Brakes</option>
+                    <option value="Transmission">Transmission</option>
+                    <option value="Tyres">Tyres</option>
+                    <option value="Fluids">Fluids</option>
                   </select>
                 </div>
               </div>

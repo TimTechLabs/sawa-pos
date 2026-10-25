@@ -1,110 +1,177 @@
 import React, { useState, useEffect } from 'react';
-import { FileBarChart, TrendingUp, ShoppingBag, Boxes, DollarSign, Printer } from 'lucide-react';
+import { TrendingUp, Printer, CheckCircle, Search, DollarSign, Smartphone, Banknote } from 'lucide-react';
+
+const parseNumericTotal = (val) => {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[^0-9.-]+/g, '');
+    return parseFloat(cleaned) || 0;
+  }
+  return 0;
+};
 
 export default function ReportsView() {
-  const [salesLedger, setSalesLedger] = useState([]);
-  const [filter, setFilter] = useState('all');
+  const [transactions, setTransactions] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const loadData = () => {
+    try {
+      // Unify both storage keys so reports pull all transactions
+      const history = JSON.parse(localStorage.getItem('sawa_sales_history') || '[]');
+      const legacy = JSON.parse(localStorage.getItem('sawa_pos_transactions_v1') || '[]');
+      
+      // Combine and remove duplicates based on receiptNo / id
+      const combined = [...history, ...legacy];
+      const unique = Array.from(new Map(combined.map(item => [item.receiptNo || item.id, item])).values());
+      
+      setTransactions(unique);
+    } catch (err) {
+      console.error("Error loading report transactions:", err);
+    }
+  };
 
   useEffect(() => {
-    const ledger = JSON.parse(localStorage.getItem('sawa_sales_ledger') || '[]');
-    setSalesLedger(ledger);
+    loadData();
+    const handleSync = () => loadData();
+    window.addEventListener('sawa_products_updated', handleSync);
+    window.addEventListener('productsUpdated', handleSync);
+    return () => {
+      window.removeEventListener('sawa_products_updated', handleSync);
+      window.removeEventListener('productsUpdated', handleSync);
+    };
   }, []);
 
-  // Compute metrics from actual sales data
-  const totalRevenue = salesLedger.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-  const totalTransactions = salesLedger.length;
-  const mpesaCount = salesLedger.filter(item => item.paymentMethod === 'mpesa' || item.payment_method === 'mpesa').length;
-  const cashCount = totalTransactions - mpesaCount;
+  const totalRevenue = transactions.reduce((sum, tx) => sum + parseNumericTotal(tx.total || tx.amount), 0);
+  const mpesaCount = transactions.filter(tx => tx.paymentMethod?.toLowerCase().includes('mpesa') || tx.paymentMethod?.toLowerCase().includes('m-pesa')).length;
+  const cashCount = transactions.filter(tx => tx.paymentMethod?.toLowerCase().includes('cash')).length;
+
+  const filteredTxns = transactions.filter(tx =>
+    (tx.receiptNo || tx.id)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.paymentMethod?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6 max-w-6xl pb-10">
-      {/* Header filter controls */}
-      <div className="bg-white border border-[#DCE3EA] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+    <div className="printable-report space-y-6 max-w-7xl mx-auto pb-10 font-sans text-[#1E293B]">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-3 border-b border-[#DCE3EA]">
         <div>
-          <h3 className="font-bold text-sm text-[#17212B]">Business Performance & Sales Reports</h3>
-          <p className="text-xs text-[#64748B]">Real-time analytics computed directly from store transaction ledgers.</p>
+          <h2 className="text-base font-bold text-[#111827] uppercase tracking-wider">
+            Business Performance & Sales Reports
+          </h2>
+          <p className="text-xs text-[#64748B]">
+            Real-time analytics computed directly from store transaction ledgers (Kitale Branch).
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <select 
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="bg-slate-50 border border-[#DCE3EA] px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
-          >
-            <option value="all">All Time Records</option>
-            <option value="today">Today's Shift</option>
-            <option value="week">This Week</option>
-          </select>
-          <button 
-            onClick={() => window.print()} 
-            className="border border-[#DCE3EA] bg-white hover:bg-slate-50 text-[#17212B] text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print Report</span>
-          </button>
-        </div>
+        <button
+          onClick={() => window.print()}
+          className="no-print px-3.5 py-2 bg-[#2563EB] text-white text-xs font-bold uppercase hover:bg-blue-700 flex items-center gap-1.5"
+        >
+          <Printer className="w-4 h-4" /> Print Report
+        </button>
       </div>
 
-      {/* Summary Metrics Cards */}
+      {/* Summary Analytics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Total Revenue" value={`KES ${totalRevenue.toLocaleString()}`} icon={DollarSign} color="text-blue-600" bg="bg-blue-50 border-blue-200" />
-        <MetricCard title="Completed Transactions" value={totalTransactions} icon={ShoppingBag} color="text-emerald-700" bg="bg-emerald-50 border-emerald-200" />
-        <MetricCard title="M-Pesa Checkouts" value={mpesaCount} icon={TrendingUp} color="text-emerald-700" bg="bg-emerald-50 border-emerald-200" />
-        <MetricCard title="Cash Checkouts" value={cashCount} icon={Boxes} color="text-amber-700" bg="bg-amber-50 border-amber-200" />
+        <div className="bg-white border border-[#DCE3EA] p-4 flex justify-between items-start">
+          <div>
+            <div className="text-[11px] font-bold text-[#64748B] uppercase">Total Revenue</div>
+            <div className="text-xl font-black text-[#111827] mt-1">KES {totalRevenue.toLocaleString()}</div>
+            <div className="text-[10px] text-emerald-600 font-bold mt-1">Live store ledger</div>
+          </div>
+          <div className="w-8 h-8 bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-bold">
+            <DollarSign className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#DCE3EA] p-4 flex justify-between items-start">
+          <div>
+            <div className="text-[11px] font-bold text-[#64748B] uppercase">Completed Transactions</div>
+            <div className="text-xl font-black text-[#111827] mt-1">{transactions.length}</div>
+            <div className="text-[10px] text-[#64748B] mt-1">Total checkouts recorded</div>
+          </div>
+          <div className="w-8 h-8 bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold">
+            <CheckCircle className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#DCE3EA] p-4 flex justify-between items-start">
+          <div>
+            <div className="text-[11px] font-bold text-[#64748B] uppercase">M-Pesa Checkouts</div>
+            <div className="text-xl font-black text-[#111827] mt-1">{mpesaCount}</div>
+            <div className="text-[10px] text-emerald-600 font-bold mt-1">Safaricom STK & Till</div>
+          </div>
+          <div className="w-8 h-8 bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold">
+            <Smartphone className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#DCE3EA] p-4 flex justify-between items-start">
+          <div>
+            <div className="text-[11px] font-bold text-[#64748B] uppercase">Cash Checkouts</div>
+            <div className="text-xl font-black text-[#111827] mt-1">{cashCount}</div>
+            <div className="text-[10px] text-blue-600 font-bold mt-1">Physical cash sales</div>
+          </div>
+          <div className="w-8 h-8 bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-bold">
+            <Banknote className="w-4 h-4" />
+          </div>
+        </div>
       </div>
 
-      {/* Transactions Ledger Table */}
-      <div className="bg-white border border-[#DCE3EA] overflow-hidden">
-        <div className="p-4 border-b border-[#DCE3EA]">
-          <h4 className="font-bold text-xs text-[#17212B] uppercase tracking-wider">Detailed Sales Ledger</h4>
+      {/* Detailed Sales Ledger Table */}
+      <div className="bg-white border border-[#DCE3EA] p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#DCE3EA] pb-3">
+          <h3 className="font-bold text-xs text-[#111827] uppercase">Detailed Sales Ledger</h3>
+          <div className="no-print relative w-full sm:w-64">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#64748B]" />
+            <input
+              type="text"
+              placeholder="Search receipt ID or payment method..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#F9FAFB] border border-[#DCE3EA] pl-9 pr-3 py-1.5 text-xs text-[#111827] focus:outline-none focus:border-black"
+            />
+          </div>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-[#DCE3EA] text-[11px] font-bold text-[#64748B] uppercase">
+          <table className="w-full text-left text-xs min-w-[640px]">
+            <thead className="bg-[#F3F4F6] border-b border-[#DCE3EA] text-[#374151] font-bold">
+              <tr>
                 <th className="p-3">Receipt No</th>
                 <th className="p-3">Date / Time</th>
+                <th className="p-3">Customer</th>
                 <th className="p-3">Payment Method</th>
                 <th className="p-3 text-right">Amount (KES)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#DCE3EA] text-xs">
-              {salesLedger.length === 0 ? (
+            <tbody className="divide-y divide-[#DCE3EA]">
+              {filteredTxns.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="p-8 text-center text-[#64748B]">
+                  <td colSpan="5" className="p-6 text-center text-[#64748B]">
                     No completed sales recorded in the ledger yet. Process a checkout in the POS to populate reports.
                   </td>
                 </tr>
               ) : (
-                salesLedger.map((sale, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
-                    <td className="p-3 font-bold text-[#17212B]">{sale.receiptNo || sale.receipt_no || 'SAWA-9921'}</td>
-                    <td className="p-3 text-[#64748B]">{sale.date || new Date().toLocaleString()}</td>
+                filteredTxns.map((tx, index) => (
+                  <tr key={tx.receiptNo || tx.id || index} className="hover:bg-[#F9FAFB]">
+                    <td className="p-3 font-mono font-bold text-[#2563EB]">{tx.receiptNo || tx.id}</td>
+                    <td className="p-3 text-[#4B5563]">{tx.date}</td>
+                    <td className="p-3 text-[#111827] font-semibold">{tx.customer || 'Walk-in Customer'}</td>
                     <td className="p-3">
-                      <span className="uppercase text-[10px] font-bold px-2 py-0.5 bg-slate-100 border border-[#DCE3EA] text-[#17212B]">
-                        {sale.paymentMethod || 'Cash'}
+                      <span className="inline-block px-2 py-0.5 bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] text-[10px] font-bold uppercase">
+                        {tx.paymentMethod}
                       </span>
                     </td>
-                    <td className="p-3 text-right font-bold text-[#17212B]">KES {(Number(sale.total) || 0).toLocaleString()}</td>
+                    <td className="p-3 text-right font-black text-[#111827]">
+                      {tx.total || tx.amount}
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ title, value, icon: Icon, color, bg }) {
-  return (
-    <div className="bg-white border border-[#DCE3EA] p-4 flex items-center justify-between">
-      <div>
-        <div className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">{title}</div>
-        <div className="text-lg font-bold text-[#17212B] mt-1">{value}</div>
-      </div>
-      <div className={`w-10 h-10 flex items-center justify-center border ${bg} ${color}`}>
-        <Icon className="w-5 h-5" />
       </div>
     </div>
   );
