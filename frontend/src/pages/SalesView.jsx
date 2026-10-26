@@ -117,7 +117,7 @@ export default function SalesView() {
           <div id="printable-receipt" className="bg-white border border-[#DCE3EA] w-full max-w-sm p-6 space-y-4 text-xs mx-auto rounded-none shadow-none">
             <div className="text-center space-y-1 border-b border-dashed border-[#DCE3EA] pb-3">
               <h3 className="font-bold text-sm text-[#17212B]">SAWA MOTORCYCLE SPARES</h3>
-              <p className="text-[10px] text-[#64748B]">Kitale Branch, P.O. Box 30200</p>
+              <p className="text-[10px] text-[#64748B]">Kitale P.O. Box 30200</p>
               <p className="text-[10px] text-[#64748B]">Tel: +254712160288</p>
               <p className="text-[10px] font-bold text-[#17212B]">Receipt #: {selectedReceipt.receiptNo || selectedReceipt.id}</p>
               <p className="text-[10px] text-[#64748B]">Date & Time: {selectedReceipt.date}</p>
@@ -152,7 +152,8 @@ export default function SalesView() {
             </div>
 
             <div className="text-center pt-1 text-[10px] text-[#64748B] italic">
-              Asante sana! Karibu tena Kitale Branch.
+              Asante sana! Karibu tena Kitale
+               Branch.
             </div>
 
             <div className="flex gap-3 pt-3 no-print">
