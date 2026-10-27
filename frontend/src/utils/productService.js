@@ -1,59 +1,11 @@
-// Initial default Kenyan motorcycle spare parts dataset with built-in asset references
+// Initial default Kenyan motorcycle spare parts dataset
 const DEFAULT_PRODUCTS = [
-  { 
-    name: 'Spark Plug (Bosch / NGK)', 
-    sku: 'SPK-001', 
-    category: 'Electrical', 
-    costPrice: 220, 
-    price: 350, 
-    stock: 17,
-    image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=300&q=80' 
-  },
-  { 
-    name: 'Brake Shoes (Front/Rear)', 
-    sku: 'BRK-002', 
-    category: 'Braking', 
-    costPrice: 450, 
-    price: 650, 
-    stock: 10,
-    image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=300&q=80' 
-  },
-  { 
-    name: 'Drive Chain & Sprocket Kit', 
-    sku: 'CHN-003', 
-    category: 'Transmission', 
-    costPrice: 1600, 
-    price: 2400, 
-    stock: 3,
-    image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=300&q=80' 
-  },
-  { 
-    name: 'Clutch Plate Set', 
-    sku: 'CLT-004', 
-    category: 'Transmission', 
-    costPrice: 850, 
-    price: 1200, 
-    stock: 8,
-    image: 'https://images.unsplash.com/photo-1558981285-6f0c94958bb6?auto=format&fit=crop&w=300&q=80' 
-  },
-  { 
-    name: 'Engine Oil (Total 4T 1L)', 
-    sku: 'OIL-005', 
-    category: 'Fluids', 
-    costPrice: 550, 
-    price: 850, 
-    stock: 24,
-    image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=300&q=80' 
-  },
-  { 
-    name: 'Heavy Duty Inner Tube (2.75-17)', 
-    sku: 'TUB-006', 
-    category: 'Tyres', 
-    costPrice: 300, 
-    price: 450, 
-    stock: 12,
-    image: 'https://images.unsplash.com/photo-1558981285-6f0c94958bb6?auto=format&fit=crop&w=300&q=80' 
-  }
+  { name: 'Spark Plug (Bosch / NGK)', sku: 'SPK-001', category: 'Electrical', costPrice: 220, price: 350, stock: 17 },
+  { name: 'Brake Shoes (Front/Rear)', sku: 'BRK-002', category: 'Braking', costPrice: 450, price: 650, stock: 10 },
+  { name: 'Drive Chain & Sprocket Kit', sku: 'CHN-003', category: 'Transmission', costPrice: 1600, price: 2400, stock: 3 },
+  { name: 'Clutch Plate Set', sku: 'CLT-004', category: 'Transmission', costPrice: 850, price: 1200, stock: 8 },
+  { name: 'Engine Oil (Total 4T 1L)', sku: 'OIL-005', category: 'Fluids', costPrice: 550, price: 850, stock: 24 },
+  { name: 'Heavy Duty Inner Tube (2.75-17)', sku: 'TUB-006', category: 'Tyres', costPrice: 300, price: 450, stock: 12 }
 ];
 
 const STORAGE_KEY = 'sawa_pos_products_v1';
@@ -66,21 +18,8 @@ export function getProducts() {
       return DEFAULT_PRODUCTS;
     }
     const parsed = JSON.parse(stored);
-    
-    // Merge updates to ensure default items receive images even if local storage already existed without them
-    const merged = DEFAULT_PRODUCTS.map(def => {
-      const existing = parsed.find(p => p.sku === def.sku);
-      if (existing && !existing.image) {
-        return { ...existing, image: def.image };
-      }
-      return existing || def;
-    });
-
-    // Include any custom user-added items not in defaults
-    const customItems = parsed.filter(p => !DEFAULT_PRODUCTS.some(def => def.sku === p.sku));
-    const finalCatalog = [...merged, ...customItems];
-
-    return Array.isArray(finalCatalog) ? finalCatalog : DEFAULT_PRODUCTS;
+    // Guarantee it always returns an array
+    return Array.isArray(parsed) ? parsed : DEFAULT_PRODUCTS;
   } catch (err) {
     console.error("Failed to fetch products:", err);
     return DEFAULT_PRODUCTS;
