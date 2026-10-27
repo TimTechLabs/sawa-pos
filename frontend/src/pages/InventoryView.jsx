@@ -14,7 +14,8 @@ export default function InventoryView({ globalSearch = '' }) {
     category: 'Braking',
     costPrice: '',
     price: '',
-    stock: ''
+    stock: '',
+    image: ''
   });
 
   const loadInventory = () => {
@@ -45,6 +46,17 @@ export default function InventoryView({ globalSearch = '' }) {
     };
   }, []);
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const searchQuery = globalSearch || localSearch;
 
   // Safe filter check
@@ -62,12 +74,13 @@ export default function InventoryView({ globalSearch = '' }) {
     }
 
     const payload = {
-      name: formData.name,
-      sku: formData.sku,
+      name: formData.name.trim(),
+      sku: formData.sku.trim().toUpperCase(),
       category: formData.category || 'General Spares',
       costPrice: Number(formData.costPrice || 0),
       price: Number(formData.price),
-      stock: Number(formData.stock || 0)
+      stock: Number(formData.stock || 0),
+      image: formData.image || (editingItem ? editingItem.image : '')
     };
 
     if (editingItem) {
@@ -76,7 +89,7 @@ export default function InventoryView({ globalSearch = '' }) {
       addProduct(payload);
     }
 
-    setFormData({ name: '', sku: '', category: 'Braking', costPrice: '', price: '', stock: '' });
+    setFormData({ name: '', sku: '', category: 'Braking', costPrice: '', price: '', stock: '', image: '' });
     setIsAddModalOpen(false);
     setEditingItem(null);
     loadInventory();
@@ -93,7 +106,8 @@ export default function InventoryView({ globalSearch = '' }) {
       category: item.category || 'General Spares',
       costPrice: item.costPrice || 0,
       price: item.price,
-      stock: item.stock
+      stock: item.stock,
+      image: item.image || ''
     });
     setIsAddModalOpen(true);
   };
@@ -126,7 +140,7 @@ export default function InventoryView({ globalSearch = '' }) {
           <button
             onClick={() => {
               setEditingItem(null);
-              setFormData({ name: '', sku: '', category: 'Braking', costPrice: '', price: '', stock: '' });
+              setFormData({ name: '', sku: '', category: 'Braking', costPrice: '', price: '', stock: '', image: '' });
               setIsAddModalOpen(true);
             }}
             className="px-3 py-2 bg-[#2563EB] text-white text-xs font-bold uppercase hover:bg-blue-700 flex items-center gap-1.5 whitespace-nowrap"
@@ -161,9 +175,18 @@ export default function InventoryView({ globalSearch = '' }) {
                 const isLowStock = p.stock <= 5;
                 return (
                   <tr key={p.sku} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="p-3">
-                      <div className="font-semibold text-[#111827]">{p.name}</div>
-                      <div className="font-mono text-[10px] text-[#2563EB]">{p.sku}</div>
+                    <td className="p-3 flex items-center gap-3">
+                      <div className="w-10 h-10 bg-slate-100 border border-[#DCE3EA] rounded flex-shrink-0 overflow-hidden flex items-center justify-center">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] text-slate-400 font-bold">IMG</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-[#111827]">{p.name}</div>
+                        <div className="font-mono text-[10px] text-[#2563EB]">{p.sku}</div>
+                      </div>
                     </td>
                     <td className="p-3 text-[#4B5563]">{p.category || 'General'}</td>
                     <td className="p-3 font-semibold text-[#4B5563]">
@@ -204,7 +227,7 @@ export default function InventoryView({ globalSearch = '' }) {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <form
             onSubmit={handleSaveProduct}
-            className="bg-white border-2 border-[#111827] p-6 w-full max-w-md space-y-4"
+            className="bg-white border border-[#DCE3EA] p-6 w-full max-w-md space-y-4"
           >
             <div className="border-b border-[#DCE3EA] pb-3 flex justify-between items-center">
               <h3 className="font-bold text-sm text-[#111827] uppercase tracking-wide">
@@ -232,8 +255,7 @@ export default function InventoryView({ globalSearch = '' }) {
                   value={formData.sku}
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   placeholder="SPK-001"
-                  disabled={!!editingItem}
-                  className="w-full border border-[#DCE3EA] p-2 text-xs bg-[#F9FAFB] focus:outline-none focus:border-black disabled:bg-[#E5E7EB]"
+                  className="w-full border border-[#DCE3EA] p-2 text-xs bg-[#F9FAFB] focus:outline-none focus:border-black"
                   required
                 />
               </div>
@@ -290,6 +312,17 @@ export default function InventoryView({ globalSearch = '' }) {
                   required
                 />
               </div>
+            </div>
+
+            {/* Product Image Upload Field */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-[#374151] uppercase">Product Image</label>
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full bg-[#F9FAFB] border border-[#DCE3EA] px-3 py-1.5 text-xs text-[#6B7280] file:mr-3 file:py-1 file:px-3 file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
             </div>
 
             <div className="flex gap-2 pt-3 border-t border-[#DCE3EA]">

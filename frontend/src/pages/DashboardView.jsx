@@ -40,7 +40,7 @@ export default function DashboardView({ setActiveTab }) {
   const [products, setProducts] = useState([]);
   
   const [formData, setFormData] = useState({
-    name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: ''
+    name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '', image: ''
   });
 
   const loadData = () => {
@@ -75,6 +75,17 @@ export default function DashboardView({ setActiveTab }) {
     };
   }, []);
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleAddProduct = (e) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.stock || !formData.sku) {
@@ -89,7 +100,8 @@ export default function DashboardView({ setActiveTab }) {
       costPrice: Number(formData.cost_price || formData.price * 0.7),
       price: Number(formData.price),
       stock: Number(formData.stock),
-      compatibility: formData.compatibility || 'Universal / Boxer / TVS'
+      compatibility: formData.compatibility || 'Universal / Boxer / TVS',
+      image: formData.image || ''
     };
 
     addProduct(newProductPayload);
@@ -97,7 +109,7 @@ export default function DashboardView({ setActiveTab }) {
     setSuccessMsg('Spare part successfully saved and synchronized across Inventory, Catalog, and POS!');
     setIsAddModalOpen(false);
     setTimeout(() => setSuccessMsg(''), 4000);
-    setFormData({ name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '' });
+    setFormData({ name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '', image: '' });
     loadData();
   };
 
@@ -389,6 +401,18 @@ export default function DashboardView({ setActiveTab }) {
                   />
                 </div>
               </div>
+
+              {/* Product Image Upload Field */}
+              <div>
+                <label className="block text-xs font-bold text-[#17212B] mb-1">Product Image</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-1.5 text-xs text-[#64748B] file:mr-3 file:py-1 file:px-3 file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+
               <div className="pt-3 border-t border-[#DCE3EA] flex justify-end gap-2">
                 <button 
                   type="button" 
