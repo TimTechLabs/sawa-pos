@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Edit, Trash2 } from 'lucide-react';
+import { Search, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct } from '../utils/productService';
 
 export default function CatalogView() {
@@ -36,6 +36,18 @@ export default function CatalogView() {
       } catch (err) {
         console.error("Failed to delete product:", err);
       }
+    }
+  };
+
+  // Handle image conversion to Base64 so it can render locally offline
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditingProduct({ ...editingProduct, image: reader.result });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -84,6 +96,7 @@ export default function CatalogView() {
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50 border-b border-[#DCE3EA] text-[#64748B] font-semibold">
             <tr>
+              <th className="p-3">Image</th>
               <th className="p-3">Part Name</th>
               <th className="p-3">SKU</th>
               <th className="p-3">Price (KES)</th>
@@ -94,13 +107,22 @@ export default function CatalogView() {
           <tbody className="divide-y divide-[#DCE3EA]">
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-4 text-center text-[#64748B]">
+                <td colSpan="6" className="p-4 text-center text-[#64748B]">
                   No spare parts found matching your query.
                 </td>
               </tr>
             ) : (
               filteredProducts.map((p) => (
                 <tr key={p.sku} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3">
+                    {p.image ? (
+                      <img src={p.image} alt={p.name} className="w-10 h-10 object-cover rounded border" />
+                    ) : (
+                      <div className="w-10 h-10 bg-slate-100 rounded flex items-center justify-center text-[#64748B]">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 font-semibold text-[#17212B]">{p.name}</td>
                   <td className="p-3 text-blue-600 font-mono">{p.sku}</td>
                   <td className="p-3 font-bold text-[#17212B]">
@@ -189,6 +211,22 @@ export default function CatalogView() {
                   }
                   className="w-full border border-[#DCE3EA] p-2 text-xs rounded focus:outline-none focus:border-blue-600"
                   required
+                />
+              </div>
+            </div>
+
+            {/* Image Upload Field */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-[#64748B]">Product Image</label>
+              <div className="flex items-center gap-3">
+                {editingProduct.image && (
+                  <img src={editingProduct.image} alt="Preview" className="w-12 h-12 object-cover rounded border" />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="w-full text-xs text-[#64748B] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
               </div>
             </div>
