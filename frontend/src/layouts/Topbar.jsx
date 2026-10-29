@@ -1,29 +1,47 @@
-import React from 'react';
+
+import React from "react";
 
 export default function Topbar({ activeTab }) {
-  const getTitle = (tab) => {
-    switch (tab) {
-      case 'dashboard': return 'Dashboard Overview';
-      case 'pos': return 'Point of Sale Checkout';
-      case 'products': return 'Spare Parts Catalog';
-      case 'inventory': return 'Stock & Inventory Control';
-      case 'sales': return 'Sales & Receipts History';
-      default: return 'Dashboard Overview';
-    }
+  const pageTitles = {
+    dashboard: "Dashboard Overview",
+    pos: "Point of Sale Checkout",
+    products: "Spare Parts Catalog",
+    catalog: "Spare Parts Catalog",
+    inventory: "Stock & Inventory Control",
+    sales: "Sales & Receipts History",
+    reports: "Reports & Analytics",
+    settings: "Shop Settings",
   };
 
-  return (
-    <header className="bg-white border-b border-[#DCE3EA] px-6 py-3.5 flex items-center justify-between">
-      <h2 className="font-bold text-base text-[#17212B] tracking-tight">
-        {getTitle(activeTab)}
-      </h2>
+  const title = pageTitles[activeTab] || "Dashboard Overview";
 
-      <div className="flex items-center space-x-3">
-        <div className="text-right">
-          <div className="text-xs font-bold text-[#17212B]">Carolyn(e) Waruguru</div>
-          <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-medium">Administrator</div>
+  return (
+    <header className="flex w-full min-w-0 shrink-0 items-center justify-between gap-3 border-b border-[#DCE3EA] bg-white px-3 py-3 sm:px-4 md:px-6 md:py-3.5">
+      {/* Current page title */}
+      <div className="min-w-0 flex-1">
+        <h2 className="break-words text-sm font-bold tracking-tight text-[#17212B] sm:text-base">
+          {title}
+        </h2>
+      </div>
+
+      {/* Administrator details */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="min-w-0 text-right">
+          <div className="whitespace-nowrap text-[11px] font-bold text-[#17212B] sm:text-xs">
+            Carolyne Waruguru
+          </div>
+
+          <div className="text-[9px] font-medium uppercase tracking-wider text-[#64748B] sm:text-[10px]">
+            Administrator
+          </div>
         </div>
-        <div className="w-8 h-8 bg-[#172B3A] text-white text-xs font-bold flex items-center justify-center">
+
+        {/* Administrator initials */}
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center bg-[#172B3A] text-xs font-bold text-white"
+          aria-label="Administrator initials CW"
+          title="Carolyne Waruguru"
+        >
           CW
         </div>
       </div>

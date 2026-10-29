@@ -1,35 +1,44 @@
+
 import React, { useState, useEffect } from 'react';
-import { 
-  ShoppingCart, 
-  Package, 
-  AlertTriangle, 
-  TrendingUp, 
-  Plus, 
-  CheckCircle2, 
-  Boxes, 
-  ArrowUpRight 
+import {
+  ShoppingCart,
+  Package,
+  AlertTriangle,
+  TrendingUp,
+  Plus,
+  CheckCircle2,
+  Boxes,
+  ArrowUpRight
 } from 'lucide-react';
 import { getProducts, addProduct } from '../utils/productService';
 import sideImg from '../assets/side.jpg';
 
-// Helper function to safely parse totals whether they are numbers, strings, or undefined
+// Safely parse totals whether they are numbers, strings, or undefined.
 const parseNumericTotal = (val) => {
   if (typeof val === 'number') return val;
+
   if (typeof val === 'string') {
     const cleaned = val.replace(/[^0-9.-]+/g, '');
     return parseFloat(cleaned) || 0;
   }
+
   return 0;
 };
 
-// Robust date checker for "Today"
+// Check whether a sale happened today.
 const isToday = (dateString) => {
   if (!dateString) return false;
+
   const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return false;
+
   const today = new Date();
-  return d.getDate() === today.getDate() &&
+
+  return (
+    d.getDate() === today.getDate() &&
     d.getMonth() === today.getMonth() &&
-    d.getFullYear() === today.getFullYear();
+    d.getFullYear() === today.getFullYear()
+  );
 };
 
 export default function DashboardView({ setActiveTab }) {
@@ -38,283 +47,472 @@ export default function DashboardView({ setActiveTab }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [salesLedger, setSalesLedger] = useState([]);
   const [products, setProducts] = useState([]);
-  
+
   const [formData, setFormData] = useState({
-    name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '', image: ''
+    name: '',
+    sku: '',
+    category: 'Electrical',
+    price: '',
+    cost_price: '',
+    stock: '',
+    compatibility: '',
+    image: ''
   });
 
   const loadData = () => {
     try {
-      const ledger = JSON.parse(localStorage.getItem('sawa_sales_history') || '[]');
-      const legacy = JSON.parse(localStorage.getItem('sawa_pos_transactions_v1') || '[]');
-      const combined = [...ledger, ...legacy];
-      const unique = Array.from(new Map(combined.map(item => [item.receiptNo || item.id, item])).values());
-      
-      setSalesLedger(Array.isArray(unique) ? unique : []);
+      const ledger = JSON.parse(
+        localStorage.getItem('sawa_sales_history') || '[]'
+      );
+
+      const legacy = JSON.parse(
+        localStorage.getItem('sawa_pos_transactions_v1') || '[]'
+      );
+
+      const combined = [
+        ...(Array.isArray(ledger) ? ledger : []),
+        ...(Array.isArray(legacy) ? legacy : [])
+      ];
+
+      const unique = Array.from(
+        new Map(
+          combined.map((item, index) => [
+            item.receiptNo || item.id || `unknown-${index}`,
+            item
+          ])
+        ).values()
+      );
+
+      setSalesLedger(unique);
 
       const prods = getProducts();
       setProducts(Array.isArray(prods) ? prods : []);
     } catch (err) {
-      console.error("Error loading dashboard data:", err);
+      console.error('Error loading dashboard data:', err);
     }
   };
 
   useEffect(() => {
     loadData();
 
-    // Listen for real-time synchronization events across tabs and views
     const handleSync = () => loadData();
-    window.addEventListener("sawa_products_updated", handleSync);
-    window.addEventListener("productsUpdated", handleSync);
-    window.addEventListener("storage", handleSync);
+
+    window.addEventListener('sawa_products_updated', handleSync);
+    window.addEventListener('productsUpdated', handleSync);
+    window.addEventListener('storage', handleSync);
 
     return () => {
-      window.removeEventListener("sawa_products_updated", handleSync);
-      window.removeEventListener("productsUpdated", handleSync);
-      window.removeEventListener("storage", handleSync);
+      window.removeEventListener('sawa_products_updated', handleSync);
+      window.removeEventListener('productsUpdated', handleSync);
+      window.removeEventListener('storage', handleSync);
     };
   }, []);
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result }));
-      };
-      reader.readAsDataURL(file);
-    }
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      setFormData((prev) => ({
+        ...prev,
+        image: reader.result
+      }));
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleAddProduct = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.price || !formData.stock || !formData.sku) {
-      setErrorMsg('Please fill in all required fields (Name, SKU, Price, Stock).');
+    setErrorMsg('');
+
+    if (
+      !formData.name.trim() ||
+      !formData.price ||
+      !formData.stock ||
+      !formData.sku.trim()
+    ) {
+      setErrorMsg(
+        'Please fill in all required fields (Name, SKU, Price, Stock).'
+      );
       return;
     }
-    
+
+    if (
+      Number(formData.price) < 0 ||
+      Number(formData.stock) < 0 ||
+      !Number.isFinite(Number(formData.price)) ||
+      !Number.isFinite(Number(formData.stock))
+    ) {
+      setErrorMsg('Price and stock must be valid, non-negative numbers.');
+      return;
+    }
+
     const newProductPayload = {
       name: formData.name.trim(),
       sku: formData.sku.trim().toUpperCase(),
       category: formData.category || 'General Spares',
-      costPrice: Number(formData.cost_price || formData.price * 0.7),
+      costPrice: Number(formData.cost_price || Number(formData.price) * 0.7),
       price: Number(formData.price),
       stock: Number(formData.stock),
       compatibility: formData.compatibility || 'Universal / Boxer / TVS',
       image: formData.image || ''
     };
 
-    addProduct(newProductPayload);
+    try {
+      addProduct(newProductPayload);
 
-    setSuccessMsg('Spare part successfully saved and synchronized across Inventory, Catalog, and POS!');
-    setIsAddModalOpen(false);
-    setTimeout(() => setSuccessMsg(''), 4000);
-    setFormData({ name: '', sku: '', category: 'Electrical', price: '', cost_price: '', stock: '', compatibility: '', image: '' });
-    loadData();
+      setSuccessMsg(
+        'Spare part successfully saved and synchronized across Inventory, Catalog, and POS!'
+      );
+      setIsAddModalOpen(false);
+      setErrorMsg('');
+
+      window.setTimeout(() => setSuccessMsg(''), 4000);
+
+      setFormData({
+        name: '',
+        sku: '',
+        category: 'Electrical',
+        price: '',
+        cost_price: '',
+        stock: '',
+        compatibility: '',
+        image: ''
+      });
+
+      loadData();
+    } catch (err) {
+      console.error('Error saving product:', err);
+      setErrorMsg('Unable to save the product. Please try again.');
+    }
   };
 
-  // Calculations from actual offline sales ledger safely using parseNumericTotal & robust isToday check
   const todaysSalesTotal = salesLedger
-    .filter(s => isToday(s.date))
-    .reduce((sum, s) => sum + parseNumericTotal(s.total || s.amount), 0);
-  
-  const totalTransactionsCount = salesLedger.length;
-  const lowStockCount = products.filter(p => p.stock <= 5).length;
+    .filter((sale) => isToday(sale.date))
+    .reduce(
+      (sum, sale) =>
+        sum + parseNumericTotal(sale.total || sale.amount),
+      0
+    );
 
-  // Weekly sales aggregation (Mon - Sun) connected to offline ledger
+  const totalTransactionsCount = salesLedger.length;
+  const lowStockProducts = products.filter(
+    (product) => Number(product.stock) <= 5
+  );
+  const lowStockCount = lowStockProducts.length;
+
+  // Aggregate recorded sales by day of the week, Monday through Sunday.
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   const weeklyData = daysOfWeek.map((day, idx) => {
     const dayTotal = salesLedger
-      .filter(s => {
-        const d = new Date(s.date || Date.now());
-        const dayIndex = (d.getDay() + 6) % 7;
+      .filter((sale) => {
+        if (!sale.date) return false;
+
+        const date = new Date(sale.date);
+
+        if (Number.isNaN(date.getTime())) return false;
+
+        const dayIndex = (date.getDay() + 6) % 7;
         return dayIndex === idx;
       })
-      .reduce((sum, s) => sum + parseNumericTotal(s.total || s.amount), 0);
+      .reduce(
+        (sum, sale) =>
+          sum + parseNumericTotal(sale.total || sale.amount),
+        0
+      );
+
     return { day, amount: dayTotal };
   });
 
-  const maxWeeklyAmount = Math.max(...weeklyData.map(d => d.amount), 5000);
+  const maxWeeklyAmount = Math.max(
+    ...weeklyData.map((day) => day.amount),
+    5000
+  );
+
+  const updateFormField = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setErrorMsg('');
+  };
 
   return (
-    <div className="space-y-6 pb-10">
-      {/* Success Notification Banner */}
+    <div className="mx-auto w-full min-w-0 max-w-full space-y-4 pb-6 sm:space-y-6 sm:pb-10">
+      {/* Success notification */}
       {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-4 py-3 text-xs flex items-center space-x-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{successMsg}</span>
+        <div
+          role="status"
+          className="flex min-w-0 items-start gap-2 border border-emerald-300 bg-emerald-50 px-3 py-3 text-xs text-emerald-800 sm:px-4"
+        >
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+          <span className="min-w-0 break-words">{successMsg}</span>
         </div>
       )}
 
-      {/* Welcome Hero Banner */}
-      <div className="bg-white border border-[#DCE3EA] p-6 flex flex-col lg:flex-row items-center justify-between gap-6" style={{ boxShadow: 'none' }}>
-        <div className="flex-1 space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 border border-blue-200">
+      {/* Welcome banner */}
+      <section className="flex min-w-0 flex-col items-stretch justify-between gap-4 border border-[#DCE3EA] bg-white p-3 sm:gap-6 sm:p-5 lg:flex-row lg:items-center lg:p-6">
+        <div className="min-w-0 flex-1 space-y-3">
+          <span className="inline-block border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
             Sawa MotoManager
           </span>
-          <h1 className="text-xl font-bold text-[#17212B]">
+
+          <h1 className="break-words text-lg font-bold text-[#17212B] sm:text-xl">
             Welcome Back, Carolyne Waruguru.
           </h1>
-          <p className="text-xs text-[#64748B]">
-            Manage your Kenyan motorcycle spare parts inventory, process M-Pesa & cash checkouts, and monitor daily shop performance from your professional dashboard.
+
+          <p className="text-xs leading-5 text-[#64748B] sm:text-sm">
+            Manage your Kenyan motorcycle spare parts inventory, process
+            M-Pesa and cash checkouts, and monitor daily shop performance
+            from your professional dashboard.
           </p>
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <button 
+
+          <div className="flex min-w-0 flex-col items-stretch gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
+            <button
+              type="button"
               onClick={() => setActiveTab('pos')}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 flex items-center gap-2 transition-colors"
+              className="flex min-h-10 w-full items-center justify-center gap-2 bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 sm:w-auto sm:px-4"
             >
-              <ShoppingCart className="w-4 h-4" />
+              <ShoppingCart className="h-4 w-4 shrink-0" />
               <span>Open POS Checkout</span>
             </button>
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="bg-white hover:bg-slate-50 text-[#17212B] border border-[#DCE3EA] text-xs font-semibold px-4 py-2 flex items-center gap-2 transition-colors"
+
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMsg('');
+                setIsAddModalOpen(true);
+              }}
+              className="flex min-h-10 w-full items-center justify-center gap-2 border border-[#DCE3EA] bg-white px-3 py-2 text-xs font-semibold text-[#17212B] transition-colors hover:bg-slate-50 sm:w-auto sm:px-4"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4 shrink-0" />
               <span>Add Product</span>
             </button>
-            <button 
+
+            <button
+              type="button"
               onClick={() => setActiveTab('inventory')}
-              className="bg-white hover:bg-slate-50 text-[#17212B] border border-[#DCE3EA] text-xs font-semibold px-4 py-2 flex items-center gap-2 transition-colors"
+              className="flex min-h-10 w-full items-center justify-center gap-2 border border-[#DCE3EA] bg-white px-3 py-2 text-xs font-semibold text-[#17212B] transition-colors hover:bg-slate-50 sm:w-auto sm:px-4"
             >
-              <Boxes className="w-4 h-4" />
+              <Boxes className="h-4 w-4 shrink-0" />
               <span>Manage Inventory</span>
             </button>
           </div>
         </div>
 
-        {/* side.jpg image container */}
-        <div className="w-full lg:w-72 h-36 border border-[#DCE3EA] overflow-hidden flex-shrink-0 bg-slate-100">
-          <img 
-            src={sideImg} 
-            alt="Motorcycle Spares Inventory" 
-            className="w-full h-full object-cover"
+        <div className="h-36 w-full shrink-0 overflow-hidden border border-[#DCE3EA] bg-slate-100 sm:h-44 lg:h-40 lg:w-72">
+          <img
+            src={sideImg}
+            alt="Motorcycle spare parts"
+            className="h-full w-full object-cover"
           />
         </div>
-      </div>
+      </section>
 
-      {/* Statistics Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard 
-          title="Today's Sales" 
-          value={`KES ${todaysSalesTotal.toLocaleString()}`} 
-          change="+12% from yesterday" 
-          icon={TrendingUp} 
+      {/* Statistics cards */}
+      <section
+        aria-label="Shop statistics"
+        className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4"
+      >
+        <MetricCard
+          title="Today's Sales"
+          value={`KES ${todaysSalesTotal.toLocaleString()}`}
+          change="Recorded sales today"
+          icon={TrendingUp}
         />
-        <MetricCard 
-          title="Completed Transactions" 
-          value={totalTransactionsCount} 
-          change="Completed today" 
-          icon={ShoppingCart} 
-        />
-        <MetricCard 
-          title="Total Inventory Items" 
-          value={products.length} 
-          change="Active parts catalog" 
-          icon={Package} 
-        />
-        <MetricCard 
-          title="Low-Stock Alerts" 
-          value={`${lowStockCount} parts`} 
-          change="Requires reordering" 
-          icon={AlertTriangle} 
-        />
-      </div>
 
-      {/* Weekly Sales Performance Graph Section */}
-      <div className="bg-white border border-[#DCE3EA] p-5 space-y-4" style={{ boxShadow: 'none' }}>
-        <div className="flex items-center justify-between border-b border-[#DCE3EA] pb-3">
-          <div>
-            <h3 className="font-bold text-sm text-[#17212B]">Weekly Sales Performance (Mon - Sun)</h3>
-            <p className="text-[11px] text-[#64748B]">Actual offline revenue tracked across the current operational week in KES.</p>
+        <MetricCard
+          title="Completed Transactions"
+          value={totalTransactionsCount.toLocaleString()}
+          change="Recorded transactions"
+          icon={ShoppingCart}
+        />
+
+        <MetricCard
+          title="Total Inventory Items"
+          value={products.length.toLocaleString()}
+          change="Active parts catalog"
+          icon={Package}
+        />
+
+        <MetricCard
+          title="Low-Stock Alerts"
+          value={`${lowStockCount} parts`}
+          change="Requires reordering"
+          icon={AlertTriangle}
+        />
+      </section>
+
+      {/* Weekly sales graph */}
+      <section className="min-w-0 space-y-4 border border-[#DCE3EA] bg-white p-3 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-2 border-b border-[#DCE3EA] pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-[#17212B]">
+              Weekly Sales Performance
+            </h2>
+            <p className="mt-1 text-[11px] leading-5 text-[#64748B]">
+              Monday to Sunday · Recorded revenue in KES
+            </p>
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 border border-[#DCE3EA] px-2 py-1 text-[#17212B]">
-            Live Offline Ledger
+
+          <span className="self-start border border-[#DCE3EA] bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#17212B] sm:self-auto">
+            Offline Ledger
           </span>
         </div>
 
-        {/* Dynamic Graph Visualizer */}
-        <div className="pt-4 pb-2 flex items-end justify-between gap-2 h-48 border-b border-[#DCE3EA] px-4">
-          {weeklyData.map((item, index) => {
-            const heightPercent = maxWeeklyAmount > 0 ? (item.amount / maxWeeklyAmount) * 100 : 0;
+        <div
+          role="img"
+          aria-label="Weekly sales chart showing recorded sales for Monday through Sunday"
+          className="flex h-52 min-w-0 items-end justify-between gap-1 border-b border-[#DCE3EA] px-1 pb-2 pt-3 sm:gap-2 sm:px-4"
+        >
+          {weeklyData.map((item) => {
+            const heightPercent =
+              maxWeeklyAmount > 0
+                ? (item.amount / maxWeeklyAmount) * 100
+                : 0;
+
             return (
-              <div key={index} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                <div className="text-[10px] font-bold text-[#64748B] opacity-0 group-hover:opacity-100 transition-opacity">
-                  {item.amount > 0 ? `KES ${item.amount.toLocaleString()}` : '0'}
-                </div>
-                <div 
-                  style={{ height: `${Math.max(heightPercent, 6)}%` }} 
+              <div
+                key={item.day}
+                className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
+              >
+                <span
+                  className="max-w-full truncate text-center text-[9px] font-semibold text-[#64748B] sm:text-[10px]"
+                  title={`KES ${item.amount.toLocaleString()}`}
+                >
+                  {item.amount > 0
+                    ? item.amount.toLocaleString()
+                    : '0'}
+                </span>
+
+                <div
                   className={`w-full max-w-[40px] transition-all duration-300 ${
                     item.amount > 0 ? 'bg-blue-600' : 'bg-slate-200'
                   }`}
+                  style={{
+                    height: `${Math.max(heightPercent, 6)}%`
+                  }}
                 />
-                <span className="text-[11px] font-bold text-[#17212B] mt-1">{item.day}</span>
+
+                <span className="mt-1 text-[10px] font-bold text-[#17212B] sm:text-[11px]">
+                  {item.day}
+                </span>
               </div>
             );
           })}
         </div>
-      </div>
 
-      {/* Supporting Operations & Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-[#DCE3EA] p-5 space-y-4" style={{ boxShadow: 'none' }}>
-          <div className="flex items-center justify-between border-b border-[#DCE3EA] pb-3">
-            <h3 className="font-bold text-sm text-[#17212B]">Recent Transactions</h3>
-            <button 
+        <p className="text-[10px] leading-4 text-[#64748B]">
+          Figures depend on the sales records available on this device.
+        </p>
+      </section>
+
+      {/* Recent transactions and low-stock watchlist */}
+      <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+        {/* Recent transactions */}
+        <div className="min-w-0 space-y-4 border border-[#DCE3EA] bg-white p-3 sm:p-5 lg:col-span-2">
+          <div className="flex min-w-0 items-center justify-between gap-2 border-b border-[#DCE3EA] pb-3">
+            <h2 className="min-w-0 text-sm font-bold text-[#17212B]">
+              Recent Transactions
+            </h2>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('sales')}
-              className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+              className="flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
             >
               <span>View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="space-y-2">
+
+          <div className="min-w-0 space-y-2">
             {salesLedger.length === 0 ? (
-              <p className="text-xs text-[#64748B] py-6 text-center">No recent transactions recorded yet.</p>
+              <p className="py-6 text-center text-xs text-[#64748B]">
+                No recent transactions recorded yet.
+              </p>
             ) : (
-              salesLedger.slice(-5).reverse().map((sale, i) => (
-                <div key={i} className="flex items-center justify-between p-3 border border-[#DCE3EA] bg-slate-50/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-bold text-xs">
-                      POS
+              salesLedger
+                .slice(-5)
+                .reverse()
+                .map((sale, index) => (
+                  <div
+                    key={sale.receiptNo || sale.id || index}
+                    className="flex min-w-0 flex-col gap-3 border border-[#DCE3EA] bg-slate-50/50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-blue-200 bg-blue-50 text-xs font-bold text-blue-600">
+                        POS
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="break-words text-xs font-bold text-[#17212B]">
+                          {sale.receiptNo || sale.id || 'SAWA-REC'}
+                        </div>
+                        <div className="break-words text-[10px] text-[#64748B]">
+                          {sale.date || 'Today'}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#17212B]">{sale.receiptNo || sale.id || 'SAWA-REC'}</div>
-                      <div className="text-[10px] text-[#64748B]">{sale.date || 'Today'}</div>
+
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
+                      <div className="break-words text-xs font-bold text-[#17212B]">
+                        {typeof sale.total === 'number'
+                          ? `KES ${sale.total.toLocaleString()}`
+                          : sale.total || sale.amount || 'KES 0'}
+                      </div>
+
+                      <span className="max-w-full break-words border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-600">
+                        {sale.paymentMethod || 'Cash'}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-[#17212B]">
-                      {typeof sale.total === 'number' ? `KES ${sale.total.toLocaleString()}` : (sale.total || sale.amount || 'KES 0')}
-                    </div>
-                    <span className="text-[9px] uppercase font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5">
-                      {sale.paymentMethod || 'Cash'}
-                    </span>
-                  </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         </div>
 
-        {/* Low Stock Quick Watch */}
-        <div className="bg-white border border-[#DCE3EA] p-5 space-y-4" style={{ boxShadow: 'none' }}>
+        {/* Low-stock watchlist */}
+        <div className="min-w-0 space-y-4 border border-[#DCE3EA] bg-white p-3 sm:p-5">
           <div className="border-b border-[#DCE3EA] pb-3">
-            <h3 className="font-bold text-sm text-[#17212B]">Low-Stock Watchlist</h3>
+            <h2 className="text-sm font-bold text-[#17212B]">
+              Low-Stock Watchlist
+            </h2>
           </div>
-          <div className="space-y-3">
-            {products.filter(p => p.stock <= 5).length === 0 ? (
-              <p className="text-xs text-[#64748B] py-4 text-center">All inventory stock levels are optimal.</p>
+
+          <div className="min-w-0 space-y-3">
+            {lowStockProducts.length === 0 ? (
+              <p className="py-4 text-center text-xs text-[#64748B]">
+                All inventory stock levels are optimal.
+              </p>
             ) : (
-              products.filter(p => p.stock <= 5).slice(0, 4).map((item) => (
-                <div key={item.sku} className="p-3 border border-blue-200 bg-blue-50/30 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-[#17212B]">{item.name}</div>
-                    <div className="text-[10px] text-blue-800">Stock remaining: {item.stock} units</div>
+              lowStockProducts.slice(0, 4).map((item, index) => (
+                <div
+                  key={item.sku || item.id || index}
+                  className="flex min-w-0 flex-col gap-3 border border-blue-200 bg-blue-50/30 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="break-words text-xs font-bold text-[#17212B]">
+                      {item.name}
+                    </div>
+                    <div className="mt-1 text-[10px] text-blue-800">
+                      Stock remaining: {item.stock} units
+                    </div>
                   </div>
-                  <button 
+
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('inventory')}
-                    className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 font-semibold"
+                    className="min-h-9 w-full shrink-0 bg-blue-600 px-3 py-2 text-[10px] font-semibold text-white hover:bg-blue-700 sm:w-auto"
                   >
                     Restock
                   </button>
@@ -323,49 +521,101 @@ export default function DashboardView({ setActiveTab }) {
             )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Add Product Modal */}
+      {/* Add product modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white border border-[#DCE3EA] w-full max-w-lg p-6 space-y-4" style={{ boxShadow: 'none' }}>
-            <div className="flex justify-between items-center border-b border-[#DCE3EA] pb-3">
-              <h3 className="font-bold text-sm text-[#17212B]">Add New Spare Part</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-xs text-[#64748B] hover:text-black">✕</button>
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeAddModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-product-title"
+            className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-lg space-y-4 overflow-y-auto border border-[#DCE3EA] bg-white p-4 sm:max-h-[calc(100dvh-2rem)] sm:p-6"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-[#DCE3EA] pb-3">
+              <h2
+                id="add-product-title"
+                className="text-sm font-bold text-[#17212B]"
+              >
+                Add New Spare Part
+              </h2>
+
+              <button
+                type="button"
+                onClick={closeAddModal}
+                aria-label="Close add product form"
+                className="flex h-9 w-9 shrink-0 items-center justify-center text-lg text-[#64748B] hover:bg-slate-100 hover:text-black"
+              >
+                ×
+              </button>
             </div>
-            
-            {errorMsg && <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-2.5">{errorMsg}</div>}
+
+            {errorMsg && (
+              <div
+                role="alert"
+                className="border border-red-200 bg-red-50 p-2.5 text-xs text-red-700"
+              >
+                {errorMsg}
+              </div>
+            )}
 
             <form onSubmit={handleAddProduct} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-[#17212B] mb-1">Part Name *</label>
-                <input 
-                  type="text" 
+                <label
+                  htmlFor="product-name"
+                  className="mb-1 block text-xs font-bold text-[#17212B]"
+                >
+                  Part Name *
+                </label>
+                <input
+                  id="product-name"
+                  type="text"
                   required
                   placeholder="e.g. Clutch Cable - Bajaj Boxer"
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                  onChange={(e) => updateFormField('name', e.target.value)}
+                  className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-3 py-2.5 text-xs focus:border-blue-600 focus:bg-white focus:outline-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#17212B] mb-1">SKU Code *</label>
-                  <input 
-                    type="text" 
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <label
+                    htmlFor="product-sku"
+                    className="mb-1 block text-xs font-bold text-[#17212B]"
+                  >
+                    SKU Code *
+                  </label>
+                  <input
+                    id="product-sku"
+                    type="text"
                     required
                     placeholder="e.g. CLT-007"
                     value={formData.sku}
-                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                    className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                    onChange={(e) => updateFormField('sku', e.target.value)}
+                    className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-3 py-2.5 text-xs focus:border-blue-600 focus:bg-white focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-[#17212B] mb-1">Category</label>
-                  <select 
+
+                <div className="min-w-0">
+                  <label
+                    htmlFor="product-category"
+                    className="mb-1 block text-xs font-bold text-[#17212B]"
+                  >
+                    Category
+                  </label>
+                  <select
+                    id="product-category"
                     value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                    onChange={(e) =>
+                      updateFormField('category', e.target.value)
+                    }
+                    className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-3 py-2.5 text-xs focus:border-blue-600 focus:bg-white focus:outline-none"
                   >
                     <option value="Electrical">Electrical</option>
                     <option value="Engine">Engine</option>
@@ -377,53 +627,78 @@ export default function DashboardView({ setActiveTab }) {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#17212B] mb-1">Selling Price (KES) *</label>
-                  <input 
-                    type="number" 
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <label
+                    htmlFor="product-price"
+                    className="mb-1 block text-xs font-bold text-[#17212B]"
+                  >
+                    Selling Price (KES) *
+                  </label>
+                  <input
+                    id="product-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
                     required
                     placeholder="1200"
                     value={formData.price}
-                    onChange={(e) => setFormData({...formData, price: e.target.value})}
-                    className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                    onChange={(e) => updateFormField('price', e.target.value)}
+                    className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-3 py-2.5 text-xs focus:border-blue-600 focus:bg-white focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-[#17212B] mb-1">Initial Stock Qty *</label>
-                  <input 
-                    type="number" 
+
+                <div className="min-w-0">
+                  <label
+                    htmlFor="product-stock"
+                    className="mb-1 block text-xs font-bold text-[#17212B]"
+                  >
+                    Initial Stock Qty *
+                  </label>
+                  <input
+                    id="product-stock"
+                    type="number"
+                    min="0"
+                    step="1"
                     required
                     placeholder="20"
                     value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                    className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-2 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                    onChange={(e) => updateFormField('stock', e.target.value)}
+                    className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-3 py-2.5 text-xs focus:border-blue-600 focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Product Image Upload Field */}
+              {/* Product image upload */}
               <div>
-                <label className="block text-xs font-bold text-[#17212B] mb-1">Product Image</label>
-                <input 
-                  type="file" 
+                <label
+                  htmlFor="product-image"
+                  className="mb-1 block text-xs font-bold text-[#17212B]"
+                >
+                  Product Image
+                </label>
+                <input
+                  id="product-image"
+                  type="file"
                   accept="image/*"
                   onChange={handleImageChange}
-                  className="w-full bg-slate-50 border border-[#DCE3EA] px-3 py-1.5 text-xs text-[#64748B] file:mr-3 file:py-1 file:px-3 file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  className="w-full min-w-0 border border-[#DCE3EA] bg-slate-50 px-2 py-2 text-xs text-[#64748B] file:mr-2 file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-blue-700 hover:file:bg-blue-100 sm:file:mr-3 sm:file:px-3"
                 />
               </div>
 
-              <div className="pt-3 border-t border-[#DCE3EA] flex justify-end gap-2">
-                <button 
-                  type="button" 
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 border border-[#DCE3EA] text-xs font-medium text-[#17212B] bg-white hover:bg-slate-50"
+              <div className="flex flex-col-reverse justify-end gap-2 border-t border-[#DCE3EA] pt-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={closeAddModal}
+                  className="min-h-10 w-full border border-[#DCE3EA] bg-white px-4 py-2 text-xs font-medium text-[#17212B] hover:bg-slate-50 sm:w-auto"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+
+                <button
+                  type="submit"
+                  className="min-h-10 w-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 sm:w-auto"
                 >
                   Save Product
                 </button>
@@ -436,17 +711,26 @@ export default function DashboardView({ setActiveTab }) {
   );
 }
 
-// Single Uniform Accent Color Metric Card Component
+// Reusable dashboard metric card.
 function MetricCard({ title, value, change, icon: Icon }) {
   return (
-    <div className="bg-white border border-[#DCE3EA] p-4 flex items-center justify-between" style={{ boxShadow: 'none' }}>
-      <div>
-        <div className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">{title}</div>
-        <div className="text-lg font-bold text-[#17212B] mt-1">{value}</div>
-        <div className="text-[11px] font-medium text-blue-600 mt-1">{change}</div>
+    <div className="flex min-w-0 items-center justify-between gap-3 border border-[#DCE3EA] bg-white p-3 sm:p-4">
+      <div className="min-w-0 flex-1">
+        <div className="break-words text-[10px] font-semibold uppercase tracking-wider text-[#64748B] sm:text-[11px]">
+          {title}
+        </div>
+
+        <div className="mt-1 break-words text-base font-bold text-[#17212B] sm:text-lg">
+          {value}
+        </div>
+
+        <div className="mt-1 break-words text-[10px] font-medium text-blue-600 sm:text-[11px]">
+          {change}
+        </div>
       </div>
-      <div className="w-10 h-10 flex items-center justify-center border border-blue-200 bg-blue-50 text-blue-600">
-        <Icon className="w-5 h-5" />
+
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-blue-200 bg-blue-50 text-blue-600 sm:h-10 sm:w-10">
+        <Icon className="h-5 w-5" />
       </div>
     </div>
   );

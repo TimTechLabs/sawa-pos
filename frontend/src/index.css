@@ -1,26 +1,210 @@
+
 @import "tailwindcss";
 
+/* =========================================
+   SAWA POS — GLOBAL STYLES
+   Responsive foundation for all devices
+   ========================================= */
+
+/* 1. Global defaults */
 @layer base {
-  body {
-    background-color: #F3F4F6;
-    color: #111827;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
 
-  /* Global flat card styling: eliminates box shadows everywhere */
-  div, card, .card, button, input, select {
-    box-shadow: none !important;
+  html {
+    width: 100%;
+    min-height: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #F3F4F6;
+    color: #111827;
+    font-family:
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      Oxygen,
+      Ubuntu,
+      Cantarell,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Prevent media from overflowing its container */
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  img,
+  video {
+    height: auto;
+  }
+
+  /* Form controls should inherit the application font */
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  /* Avoid long text forcing containers wider than the screen */
+  h1,
+  h2,
+  h3,
+  h4,
+  p {
+    overflow-wrap: anywhere;
+  }
+
+  /* Preserve Sawa POS's flat visual design */
+  .card,
+  [class~="card"] {
+    box-shadow: none;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    box-shadow: none;
+  }
+
+  /* Keep keyboard focus visible for accessibility */
+  :focus-visible {
+    outline: 2px solid #2563EB;
+    outline-offset: 2px;
   }
 }
 
+/* 2. Responsive page foundations */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+/* Allow flex and grid children to shrink when necessary */
+main,
+section,
+article,
+aside,
+header,
+footer {
+  min-width: 0;
+}
+
+/* Keep responsive images inside product cards */
+.product-image,
+.product-card img {
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* Tables may scroll inside their own containers */
+.table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 3. Tablet and smaller laptop adjustments */
+@media screen and (max-width: 1024px) {
+  /* Prevent common page wrappers from exceeding the viewport */
+  #root {
+    max-width: 100%;
+  }
+
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+}
+
+/* 4. Mobile adjustments */
+@media screen and (max-width: 768px) {
+  body {
+    min-width: 320px;
+  }
+
+  /* Prevent oversized headings on narrow screens */
+  h1 {
+    font-size: clamp(1.35rem, 5vw, 2rem);
+  }
+
+  h2 {
+    font-size: clamp(1.15rem, 4vw, 1.5rem);
+  }
+
+  /* Keep media within the available screen width */
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  /* Allow long tables to scroll without widening the page */
+  .table-responsive {
+    overflow-x: auto;
+  }
+}
+
+/* 5. Small mobile phones */
+@media screen and (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* Avoid forcing oversized form fields beyond their containers */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+}
+
+/* =========================================
+   PRINT STYLES
+   Preserve receipts and reports
+   ========================================= */
+
 @media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    min-width: 0;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
-  
-  /* Make both printable receipts and printable reports visible when printing */
-  #printable-receipt, #printable-receipt *,
-  .printable-report, .printable-report * {
+
+  /* Show printable receipts and reports */
+  #printable-receipt,
+  #printable-receipt *,
+  .printable-report,
+  .printable-report * {
     visibility: visible !important;
   }
 
@@ -35,7 +219,7 @@
     background: #FFFFFF !important;
     color: #000000 !important;
     box-shadow: none !important;
-  } 
+  }
 
   .printable-report {
     position: absolute !important;
